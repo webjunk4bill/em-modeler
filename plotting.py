@@ -46,9 +46,11 @@ def em_plot_time(em_df):
     em_df['daily_debt_ratio'] = np.multiply((em_df['daily_debt_ratio']), 100)  # for better plotting
 
     fig1, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=2)
-    em_df[['$bertha/m', '$liquid_debt/m', '$total_debt/m']].plot(ax=axes[0, 0], ylabel='$USD (millions)',
-                                                                 title='Treasury and Debt', sharex=False, sharey=False,
-                                                                 grid=True)
+    em_df[['$bertha/m',
+           '$liquid_debt/m',
+           '$total_debt/m',
+           'total_debt/m']].plot(ax=axes[0, 0], ylabel='$USD (millions)',
+                                 title='Treasury and Debt', sharex=False, sharey=False, grid=True)
     em_df[['$trunk', '$elephant/m']].plot(ax=axes[1, 0], ylabel='$USD (ele/m)', title='Token Prices',
                                           sharex=False, sharey=False, grid=True)
     em_df['bertha/T'].plot(ax=axes[0, 1], ylabel='Trillion Tokens', title='Bertha Size (Trillion Tokens)',
@@ -63,11 +65,10 @@ def em_plot_time(em_df):
                                  sharex=False, sharey=False, grid=True)
     em_df['redemption_queue'].plot(ax=axes[0, 1], ylabel='Redemption Queue USD', title='Redemption Queue Size',
                                    sharex=False, sharey=False, grid=True)
-    em_df['staking_balance/m'].plot(ax=axes[1, 0], ylabel='Trunk', title='Staking Balance')
-    em_df['trunk_wallets/m'].plot(ax=axes[1, 1], ylabel='Trunk', title='Trunk Held in Wallets')
-    em_df['farm_tvl/m'].plot(ax=axes[0, 2], title='EM Farms TVL')
+    em_df['staking_balance/m'].plot(ax=axes[1, 0], ylabel='Trunk (millions)', title='Staking Balance')
+    em_df['trunk_wallets/m'].plot(ax=axes[1, 1], ylabel='Trunk (millions)', title='Trunk Held in Wallets')
+    em_df['farm_tvl/m'].plot(ax=axes[0, 2], title='EM Farms TVL', ylabel='Trunk (millions)')
     plt.show()
-
 
 # df = pd.read_csv('output_time.csv', index_col=0, parse_dates=True)
 # df = pd.read_csv('output_funds.csv', index_col=0)

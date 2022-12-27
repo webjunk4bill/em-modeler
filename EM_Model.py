@@ -62,9 +62,9 @@ depot_balance = 0
 # Incoming Funds - use total and the split by %
 incoming_funds = 100000
 # below should add to 100%
-buy_w_b = 0.1
-buy_trunk_pcs = 0.02  # Trunk buys off PCS.  Assume goes to wallets for arbitrages, swing trading
-farm_depot = 0.58  # Also used for Minting
+buy_w_b = 0.25
+buy_trunk_pcs = 0.05  # Trunk buys off PCS.  Assume goes to wallets for arbitrages, swing trading
+farm_depot = 0.4  # Also used for Minting
 peanuts = 0.3
 if buy_w_b + buy_trunk_pcs + farm_depot + peanuts != 1:
     raise Exception("Incoming fund split needs to equal 100%")
@@ -73,7 +73,7 @@ if buy_w_b + buy_trunk_pcs + farm_depot + peanuts != 1:
 sell_w_b = 0  # In USD
 # ele_market_buy = 0
 # ele_market_sell = 0
-daily_liquid_trunk_sales = 0.025  # % of outstanding liquid trunk sold daily at PEG.  Will be PEG-adjusted when off.
+daily_liquid_trunk_sales = 0.01  # % of outstanding liquid trunk sold daily at PEG.  Will be PEG-adjusted when off.
 
 # Yield Behavior (needs to add up to 100%) - only for "claim" days
 # Set these values for a fully running system.  Will be modified based on Trunk price during recovery.
@@ -288,7 +288,9 @@ for run in range(int(run_days)):
         "$bertha_payouts/m": daily_bertha_support / 1E6,
         "$daily_yield/m": daily_yield / 1E6,
         "$liquid_debt/m": usd_liquid_debt / 1E6,
+        "liquid_debt/m": trunk_liquid_debt / 1E6,
         "$total_debt/m": usd_total_debt / 1E6,
+        "total_debt/m": trunk_total_debt / 1E6,
         "total_debt_ratio": bertha * average_ele_price / usd_total_debt,
         "liquid_debt_ratio": bertha * average_ele_price / usd_liquid_debt,
         "daily_debt_ratio": daily_bertha_support / daily_yield,  # Bertha payouts vs yield
@@ -316,5 +318,5 @@ em_dataframe_funds = pd.DataFrame(em_data_funds).T
 em_dataframe_time.to_csv('output_time.csv')
 em_dataframe_funds.to_csv('output_funds.csv')
 em_plot_time(em_dataframe_time)
-em_plot_funds(em_dataframe_funds)
+# em_plot_funds(em_dataframe_funds)
 print("Done")
