@@ -9,7 +9,7 @@ from plotting import em_plot_time
 from plotting import em_plot_funds
 import pickle
 
-read_blockchain = False  # Flag if want to update balances from blockchain.  Takes a LONG time
+read_blockchain = False  # Flag True to update balances from blockchain.  Takes a LONG time.  Requires Moralis API
 if read_blockchain:
     # get EM info (this can be done automatically)
     # get LPs
@@ -24,27 +24,27 @@ if read_blockchain:
     trunk_treasury = bsc.GetWalletBalance(addr_contracts.trunk_treasury, addr_tokens.Trunk).balance
 
     to_pickle = [ele_bnb_lp, ele_busd_lp, trunk_busd_lp, bnb, bertha, busd_treasury, trunk_treasury]
-    f = open('tokens.pkl', 'wb')
+    f = open('chainData_{0}.pkl'.format(date.today()), 'wb')
     pickle.dump(to_pickle, f)
     f.close()
 else:
-    f_o = open('tokens.pkl', 'rb')
+    f_o = open('chainData_2022-12-28.pkl', 'rb')  # TODO: figure out how to update this automatically
     from_pickle = pickle.load(f_o)
     f_o.close()
     [ele_bnb_lp, ele_busd_lp, trunk_busd_lp, bnb, bertha, busd_treasury, trunk_treasury] = from_pickle
 
-# get EM info (this has to be done manually)
+# get EM info (this has to be done manually - Updated Dec 28, 2022)
 stampede_max_apr = 2.05 / 365  # Use Daily APR
 em_farms_max_apr = 1.25 / 365  # Use Daily APR
 staking_apr = 0.3 / 365  # This is variable.  Check the site.  No good way to calculate the change
-redemption_queue = 1.45E6
-staking_balance = 9.173E6
-em_farm_tvl = 6.986E6  # Yield is paid out on TVL
+redemption_queue = 1.44E6
+staking_balance = 9.078E6
+em_farm_tvl = 7.265E6  # Yield is paid out on TVL
 em_farm_balance = em_farm_tvl / 2  # This is the total trunk balance in the farms
-stampede_bonds = 55.22E6
-stampede_payouts = 57.37E6
+stampede_bonds = 55.42E6
+stampede_payouts = 57.94E6
 stampede_owed = 2.05 * stampede_bonds - stampede_payouts  # Total platform debt as of "today"
-trunk_supply = 29.54E6
+trunk_supply = 29.892E6
 trunk_held_wallets = trunk_supply * 0.0355  # Estimate based off bscscan token holders:
 # https://bscscan.com/token/tokenholderchart/0xdd325C38b12903B727D16961e61333f4871A70E0
 trunk_liquid_debt = staking_balance + trunk_held_wallets + em_farm_balance
@@ -60,7 +60,7 @@ depot_deposits = 0
 depot_balance = 0
 
 # Incoming Funds - use total and the split by %
-incoming_funds = 100000
+incoming_funds = 50000
 # below should add to 100%
 buy_w_b = 0.25
 buy_trunk_pcs = 0.05  # Trunk buys off PCS.  Assume goes to wallets for arbitrages, swing trading
@@ -73,7 +73,7 @@ if buy_w_b + buy_trunk_pcs + farm_depot + peanuts != 1:
 sell_w_b = 0  # In USD
 # ele_market_buy = 0
 # ele_market_sell = 0
-daily_liquid_trunk_sales = 0.01  # % of outstanding liquid trunk sold daily at PEG.  Will be PEG-adjusted when off.
+daily_liquid_trunk_sales = 0.025  # % of outstanding liquid trunk sold daily at PEG.  Will be PEG-adjusted when off.
 
 # Yield Behavior (needs to add up to 100%) - only for "claim" days
 # Set these values for a fully running system.  Will be modified based on Trunk price during recovery.
@@ -88,7 +88,7 @@ if yield_to_hold + yield_to_stake + yield_to_farm != 1:
 # schedule = ['roll', 'roll', 'roll', 'roll', 'roll', 'roll', 'roll', 'claim', 'claim']  # 7/1/1
 # schedule = ['claim']
 schedule = ['roll', 'claim']
-run_quarters = 12
+run_quarters = 20
 run_days = run_quarters * 365 / 4
 cycles = round(run_days / len(schedule)) + 1
 roll_claim = []
@@ -104,6 +104,8 @@ running_income_funds = 0
 starting_ele_price = ele_busd_lp.price
 starting_trunk_price = trunk_busd_lp.price
 starting_bnb_price = bnb.usd_value
+starting_bwb = buy_w_b
+starting_incoming = incoming_funds
 
 # ------ Set up BNB changes ------
 # TODO: Turn this into a function.  it can definitely be cleaned up.
@@ -112,7 +114,8 @@ periods = run_quarters + 2  # we are starting one quarter back from today's date
 sparse_range = pd.date_range(start, periods=periods, freq="QS")
 full_range = pd.date_range(start, sparse_range.date[-1])
 # Look for a bull run in 2024.  Start the first two values with the current price
-bnb_price_movement = [bnb.usd_value, bnb.usd_value, 275, 300, 325, 350, 375, 400, 500, 600, 650, 700, 725, 750]
+bnb_price_movement = [bnb.usd_value, bnb.usd_value, 275, 300, 325, 350, 375, 400, 500, 600,
+                      650, 700, 725, 750, 650, 625, 700, 750, 800, 800, 750, 800]
 # bnb_price_movement = [250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250]
 if sparse_range.size != bnb_price_movement.__len__():
     raise Exception("BNB Price range does not match date range")
@@ -126,6 +129,7 @@ for run in range(int(run_days)):
     # ------ Daily Bertha Support ------
     average_ele_price = (ele_busd_lp.price + (ele_bnb_lp.price * bnb.usd_value)) / 2  # Should really be weighted, but
     # ...won't make a significant difference
+    redemption_bertha_support = bertha * average_ele_price * redemption_support_apr
     daily_bertha_support = bertha * average_ele_price * (redemption_support_apr + trunk_support_apr)
 
     # Handle Treasuries
@@ -174,8 +178,8 @@ for run in range(int(run_days)):
         pass  # support pool just grows if Trunk is already at Peg
 
     # ------ Arbitrage Trunk LP with Redemption Pool (if available) or Minting ------
-    # SQRT(CP) will give perfect split.  don't arbitrage more than 10%/day
-    delta = (trunk_busd_lp.const_prod ** 0.5 - trunk_busd_lp.token_bal['BUSD']) * 0.1
+    # SQRT(CP) will give perfect split.  don't arbitrage more than 25%/day
+    delta = (trunk_busd_lp.const_prod ** 0.5 - trunk_busd_lp.token_bal['BUSD']) * 0.25
     if trunk_busd_lp.price < 1:
         if redemption_pool < 10000:  # Give it some buffer to smooth things
             pass
@@ -253,12 +257,12 @@ for run in range(int(run_days)):
     daily_bertha_support_trunk = daily_bertha_support / trunk_busd_lp.price
     max_trunk_to_sell = trunk_liquid_debt * daily_liquid_trunk_sales
     # Figure out how much trunk to actually sell based on Trunk price - lower price, reduce selling
-    if redemption_queue > 0:  # Limit selling while servicing redemption queue
+    if redemption_queue < 25000:  # Limit selling while servicing redemption queue
         trunk_to_sell = min(max_trunk_to_sell, daily_bertha_support_trunk / 2)
     else:
         trunk_to_sell = max_trunk_to_sell * trunk_busd_lp.price
     # Split between Redeem and Sell
-    if redemption_queue < daily_bertha_support * 14:  # Redemption Queue at two weeks time to payout
+    if redemption_queue < redemption_bertha_support * 14:  # Redemption Queue at two weeks time to payout
         redemption_queue += trunk_to_sell  # Redeem Trunk
     else:
         trunk_busd_lp.update_lp('TRUNK', trunk_to_sell)  # Sell Trunk
@@ -304,13 +308,17 @@ for run in range(int(run_days)):
     # Make daily updates
     day += pd.Timedelta("1 day")
     bnb.usd_value = bnb_price_s[day]  # Update BNB value
+    elephant_gain = average_ele_price / starting_ele_price
+    # buy_w_b = starting_bwb * ((elephant_gain-1) / 5) + 1  # Represent FOMO into Elephant Token
+    bnb_gain = bnb.usd_value / starting_bnb_price
+    incoming_funds = starting_incoming * bnb_gain  # Incoming funds increasing with market (represented by BNB gain)
     em_data_time[day] = daily_snapshot
     em_data_funds[running_income_funds / 1E6] = daily_snapshot  # Alternate view in millions in
 
     # for debug, setting break point
     # if run >= 800:
     #    print(day)
-    # TODO: Model increases/decreases in incoming funds, governance APRs
+    # TODO: Model increases/decreases in governance APRs
     # TODO: Add individual stampede and Elephant bag tracking
 
 em_dataframe_time = pd.DataFrame(em_data_time).T
