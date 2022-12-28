@@ -60,7 +60,7 @@ depot_deposits = 0
 depot_balance = 0
 
 # Incoming Funds - use total and the split by %
-incoming_funds = 50000
+incoming_funds = 100000
 # below should add to 100%
 buy_w_b = 0.25
 buy_trunk_pcs = 0.05  # Trunk buys off PCS.  Assume goes to wallets for arbitrages, swing trading
@@ -88,7 +88,7 @@ if yield_to_hold + yield_to_stake + yield_to_farm != 1:
 # schedule = ['roll', 'roll', 'roll', 'roll', 'roll', 'roll', 'roll', 'claim', 'claim']  # 7/1/1
 # schedule = ['claim']
 schedule = ['roll', 'claim']
-run_quarters = 20
+run_quarters = 10
 run_days = run_quarters * 365 / 4
 cycles = round(run_days / len(schedule)) + 1
 roll_claim = []
@@ -114,8 +114,9 @@ periods = run_quarters + 2  # we are starting one quarter back from today's date
 sparse_range = pd.date_range(start, periods=periods, freq="QS")
 full_range = pd.date_range(start, sparse_range.date[-1])
 # Look for a bull run in 2024.  Start the first two values with the current price
-bnb_price_movement = [bnb.usd_value, bnb.usd_value, 275, 300, 325, 350, 375, 400, 500, 600,
-                      650, 700, 725, 750, 650, 625, 700, 750, 800, 800, 750, 800]
+# bnb_price_movement = [bnb.usd_value, bnb.usd_value, 275, 300, 325, 350, 375, 400, 500, 600,
+#                      650, 700, 725, 750, 650, 625, 700, 750, 800, 800, 750, 800]
+bnb_price_movement = [bnb.usd_value, bnb.usd_value, 275, 300, 325, 350, 375, 400, 500, 600, 650, 700]
 # bnb_price_movement = [250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250]
 if sparse_range.size != bnb_price_movement.__len__():
     raise Exception("BNB Price range does not match date range")
@@ -283,7 +284,7 @@ for run in range(int(run_days)):
 
     # Output Results
     daily_snapshot = {
-        "funds_in": running_income_funds,
+        "$funds_in/m": running_income_funds / 1E6,
         "bertha/T": bertha / 1E12,
         "$bertha/m": bertha * average_ele_price / 1E6,
         "$elephant/m": average_ele_price * 1E6,

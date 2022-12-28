@@ -56,9 +56,12 @@ def em_plot_time(em_df):
                                  title='Treasury and Debt - Trunk at PEG', sharex=False, sharey=False, grid=True)
     em_df[['$trunk', '$elephant/m']].plot(ax=axes[0, 0], ylabel='$USD (ele/m)', title='Token Prices',
                                           sharex=False, sharey=False, grid=True)
-    em_df['daily_debt_ratio'].plot(ax=axes[0, 1], ylabel='% Serviceable Yields',
-                                   title='% of Yield that can be Serviced Daily',
-                                   sharex=False, sharey=False, grid=True)
+    em_df['$funds_in/m'].plot(ax=axes[0, 1], ylabel='USD (millions)',
+                              title='Cumulative Incoming Protocol Funds',
+                              sharex=False, sharey=False, grid=True)
+    # em_df['daily_debt_ratio'].plot(ax=axes[0, 1], ylabel='% Serviceable Yields',
+    #                               title='% of Yield that can be Serviced Daily',
+    #                               sharex=False, sharey=False, grid=True)
     plt.show()
 
     fig2, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=3)
@@ -72,6 +75,7 @@ def em_plot_time(em_df):
     em_df['bertha/T'].plot(ax=axes[0, 0], ylabel='Trillion Tokens', title='Bertha Size (Trillion Tokens)',
                            sharex=False, sharey=False, grid=True)
     plt.show()
+
 
 # df = pd.read_csv('output_time.csv', index_col=0, parse_dates=True)
 # df = pd.read_csv('output_funds.csv', index_col=0)
