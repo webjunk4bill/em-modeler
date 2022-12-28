@@ -101,6 +101,7 @@ day = pd.to_datetime(date.today())
 em_data_time = {}
 em_data_funds = {}
 running_income_funds = 0
+redemptions_paid = 0
 starting_ele_price = ele_busd_lp.price
 starting_trunk_price = trunk_busd_lp.price
 starting_bnb_price = bnb.usd_value
@@ -161,9 +162,11 @@ for run in range(int(run_days)):
     redemption_pool += busd_received  # Add BUSD funds to the redemption pool
     if redemption_queue >= redemption_pool:
         redemption_queue -= redemption_pool  # Payout as much of queue as possible
+        redemptions_paid += redemption_pool
         redemption_pool = 0  # Pool is now drained
     else:
         redemption_pool -= redemption_queue  # Payout remainder of redemption queue
+        redemptions_paid += redemption_queue
         redemption_queue = 0  # Queue is now at 0
 
     # ------ Trunk Support ------
@@ -187,8 +190,10 @@ for run in range(int(run_days)):
         elif redemption_pool > delta:
             trunk_busd_lp.update_lp('BUSD', delta)
             redemption_pool -= delta
+            redemptions_paid += delta
         else:
             trunk_busd_lp.update_lp('BUSD', redemption_pool)
+            redemptions_paid += redemption_pool
             redemption_pool = 0
     elif trunk_busd_lp.price > 1:  # Delta should be negative in this case
         trunk_busd_lp.update_lp('TRUNK', abs(delta))  # Sell trunk on PCS
@@ -261,9 +266,9 @@ for run in range(int(run_days)):
     if redemption_queue < 25000:  # Limit selling while servicing redemption queue
         trunk_to_sell = min(max_trunk_to_sell, daily_bertha_support_trunk / 2)
     else:
-        trunk_to_sell = max_trunk_to_sell * trunk_busd_lp.price
+        trunk_to_sell = max_trunk_to_sell
     # Split between Redeem and Sell
-    if redemption_queue < redemption_bertha_support * 14:  # Redemption Queue at two weeks time to payout
+    if redemption_queue < redemption_bertha_support * 7:  # Redemption Queue at one week time to payout
         redemption_queue += trunk_to_sell  # Redeem Trunk
     else:
         trunk_busd_lp.update_lp('TRUNK', trunk_to_sell)  # Sell Trunk
@@ -280,6 +285,7 @@ for run in range(int(run_days)):
     trunk_total_debt = trunk_liquid_debt + stampede_owed
     usd_liquid_debt = trunk_liquid_debt * trunk_busd_lp.price
     usd_total_debt = trunk_total_debt * trunk_busd_lp.price
+    running_income_funds += (buy_w_b - starting_bwb) * incoming_funds  # Extra funds from BwB
     running_income_funds += incoming_funds  # Keep a running total of all funds into the system
 
     # Output Results
@@ -301,25 +307,30 @@ for run in range(int(run_days)):
         "daily_debt_ratio": daily_bertha_support / daily_yield,  # Bertha payouts vs yield
         "redemption_queue": redemption_queue,
         "trunk_treasury": trunk_treasury,
+        "trunk_support_pool": trunk_support_pool,
+        "redemption_pool": redemption_pool,
+        "$redemptions_paid/m": redemptions_paid / 1E6,
         "staking_balance/m": staking_balance / 1E6,
         "trunk_wallets/m": trunk_held_wallets / 1E6,
         'farm_tvl/m': em_farm_tvl / 1E6
     }
 
-    # Make daily updates
+    # Make daily updates and model increases in interest as protocol grows
     day += pd.Timedelta("1 day")
     bnb.usd_value = bnb_price_s[day]  # Update BNB value
     elephant_gain = average_ele_price / starting_ele_price
-    # buy_w_b = starting_bwb * ((elephant_gain-1) / 5) + 1  # Represent FOMO into Elephant Token
+    buy_w_b = min(starting_bwb * ((elephant_gain-1) / 5) + 1, starting_bwb * 3)  # Represent FOMO into Elephant Token
     bnb_gain = bnb.usd_value / starting_bnb_price
     incoming_funds = starting_incoming * bnb_gain  # Incoming funds increasing with market (represented by BNB gain)
+    if bertha * average_ele_price > trunk_total_debt * 1.5:  # Respond to growth by increasing support payouts
+        redemption_support_apr *= 1.003
+        trunk_support_apr *= 1.003
     em_data_time[day] = daily_snapshot
     em_data_funds[running_income_funds / 1E6] = daily_snapshot  # Alternate view in millions in
 
     # for debug, setting break point
     # if run >= 800:
     #    print(day)
-    # TODO: Model increases/decreases in governance APRs
     # TODO: Add individual stampede and Elephant bag tracking
 
 em_dataframe_time = pd.DataFrame(em_data_time).T
