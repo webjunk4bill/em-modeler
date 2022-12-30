@@ -154,3 +154,6 @@ def elephant_sell(funds, busd_lp, bnb_lp, bnb_price):
         busd_lp.update_lp('ELEPHANT', funds)
         tok_removed = busd_lp.tokens_removed
     return tok_removed
+
+
+# TODO: Create treasuries class to handle functions associated with BUSD, Bertha, Trunk treasuries
