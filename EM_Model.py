@@ -62,10 +62,10 @@ depot_balance = 0
 # Incoming Funds - use total and the split by %
 incoming_funds = 100000
 # below should add to 100%
-buy_w_b = 0.25
-buy_trunk_pcs = 0.05  # Trunk buys off PCS.  Assume goes to wallets for arbitrages, swing trading
-farm_depot = 0.4  # Also used for Minting
-peanuts = 0.3
+buy_w_b = 0.3
+buy_trunk_pcs = 0.1  # Trunk buys off PCS.  Assume goes to wallets for arbitrages, swing trading
+farm_depot = 0.2  # Also used for Minting
+peanuts = 0.4
 if buy_w_b + buy_trunk_pcs + farm_depot + peanuts != 1:
     raise Exception("Incoming fund split needs to equal 100%")
 
@@ -73,15 +73,17 @@ if buy_w_b + buy_trunk_pcs + farm_depot + peanuts != 1:
 sell_w_b = 0  # In USD
 # ele_market_buy = 0
 # ele_market_sell = 0
-yield_sales = 0.5  # % of daily available yield to sell
+peg_trunk = True  # This will over-ride the amount of sales in order to keep Trunk near $1
+yield_sales = 0.5  # % of daily available yield to sell (at PEG)
 daily_liquid_trunk_sales = 0.02  # Maximum % of trunk held to be sold in a day only *if* the platform can support it.
 
 # Yield Behavior (needs to add up to 100%) - only for "claim" days
 # Set these values for a fully running system.  Will be modified based on Trunk price during recovery.
-yield_to_hold = 0.05
+yield_to_hold = 0.0
 yield_to_stake = 0.5
-yield_to_farm = 0.45
-if yield_to_hold + yield_to_stake + yield_to_farm != 1:
+yield_to_farm = 0.3
+yield_to_bond = 0.2
+if yield_to_hold + yield_to_stake + yield_to_farm + yield_to_bond != 1:
     raise Exception("Yield behavior must add to 100%")
 
 # Setup Run
@@ -128,7 +130,7 @@ for run in range(int(run_days)):
     # Daily Bertha Support ---------------------------------------------------------------------
     average_ele_price = (ele_busd_lp.price + (ele_bnb_lp.price * bnb.usd_value)) / 2  # Should really be weighted, but
     # ...won't make a significant difference
-    daily_bertha_support = bertha * average_ele_price * (redemption_support_apr + trunk_support_apr)
+    daily_bertha_support_usd = bertha * average_ele_price * (redemption_support_apr + trunk_support_apr)
 
     # Handle Treasuries ---------------------------------------------------------------------
     # ------ BwB ------
@@ -178,27 +180,7 @@ for run in range(int(run_days)):
     else:
         pass  # support pool just grows if Trunk is already at Peg
 
-    # ------ Arbitrage Trunk LP with Redemption Pool (if available) or Minting ------
-    # TODO: This can be made a function or class
-    # SQRT(CP) will give perfect split.  don't arbitrage more than 25%/day
-    delta = (trunk_busd_lp.const_prod ** 0.5 - trunk_busd_lp.token_bal['BUSD']) * 0.25
-    if trunk_busd_lp.price < 1:
-        if redemption_pool < 10000:  # Give it some buffer to smooth things
-            pass
-        elif redemption_pool > delta:
-            trunk_busd_lp.update_lp('BUSD', delta)
-            redemption_pool -= delta
-            redemptions_paid += delta
-        else:
-            trunk_busd_lp.update_lp('BUSD', redemption_pool)
-            redemptions_paid += redemption_pool
-            redemption_pool = 0
-    elif trunk_busd_lp.price > 1:  # Delta should be negative in this case
-        trunk_busd_lp.update_lp('TRUNK', abs(delta))  # Sell trunk on PCS
-        if trunk_treasury > abs(delta):
-            trunk_treasury -= abs(delta)  # Comes from Trunk Treasury if there are funds
-
-    # Handle Yield and Stampede (all in Trunk) ---------------------------------------------------------------------
+    # Handle Yield and Sales/Redemptions (all in Trunk) ----------------------------------------------------------------
     # ------ Calculate Available Yield ------ #
     stk_yield = staking_balance * staking_apr  # In Trunk
     fm_yield = em_farm_tvl * em_farms_max_apr * trunk_busd_lp.price
@@ -220,12 +202,20 @@ for run in range(int(run_days)):
     if trunk_treasury > 0 + kept_yield:  # Yield will be paid from Trunk treasury, or else minted
         trunk_treasury -= kept_yield
 
+    # ------ Determine community Peg support and sales amount ------
+    if peg_trunk and trunk_busd_lp.price < 1:
+        trunk_sales = daily_bertha_support_usd / 2  # By looking at only USD, will keep selling low while $trunk is low
+    elif peg_trunk:
+        trunk_sales = (1 - 0.9 ** 0.5) * trunk_busd_lp.token_bal['TRUNK']  # Allow up to 10% drop in Trunk Price
+    else:
+        trunk_sales = kept_yield * yield_sales
+
     # ------ Yield Redemption/Sales ------
     if redeem_wait_days <= 14:  # This can be adjusted, just guessing
-        redemption_queue += kept_yield * yield_sales
+        redemption_queue += trunk_sales
     else:
-        trunk_busd_lp.update_lp('TRUNK', kept_yield * yield_sales)
-    kept_yield *= (1 - yield_sales)  # Update yield remaining
+        trunk_busd_lp.update_lp('TRUNK', trunk_sales)
+    kept_yield -= trunk_sales  # depending on whether this is positive or negative will determine sales vs hold
 
     # ------ Update balances based on kept yield ------
     # --- Buys off PCS - included here so that it can use the same deposit ratios defined
@@ -233,12 +223,27 @@ for run in range(int(run_days)):
     trunk_busd_lp.update_lp('BUSD', buy_trunk_pcs * incoming_funds)  # purchase trunk
     kept_yield += trunk_busd_lp.tokens_removed
     # --- Update Balances ---
-    staking_balance += kept_yield * yield_to_stake
-    trunk_held_wallets += kept_yield * yield_to_hold
-    # To farm, assume need to sell half of yield to purchase a pairing token
-    trunk_busd_lp.update_lp('TRUNK', kept_yield * yield_to_farm / 2)  # Sell half of trunk to pair
-    em_farm_tvl += kept_yield * yield_to_farm  # TVL still goes up by total amount
-    trunk_liquid_debt = staking_balance + em_farm_tvl / 2 + trunk_held_wallets  # Update liquid debt
+    if kept_yield > 0:
+        staking_balance += kept_yield * yield_to_stake
+        trunk_held_wallets += kept_yield * yield_to_hold
+        em_farm_tvl += kept_yield * yield_to_farm  # TVL still goes up by total amount, assume bringing pair token
+        trunk_liquid_debt = staking_balance + em_farm_tvl / 2 + trunk_held_wallets  # Update liquid debt
+        stampede_bonds += kept_yield * yield_to_bond
+
+    # ------ Arbitrage Trunk LP with Redemption Pool or Minting ------
+    # TODO: This can be made a function or class
+    # SQRT(CP) will give perfect split.
+    delta = (trunk_busd_lp.const_prod ** 0.5 - trunk_busd_lp.token_bal['BUSD'])
+    if trunk_busd_lp.price <= 1.00 and redeem_wait_days < 30:  # No arbitrage until queue is reasonable.
+        trunk_busd_lp.update_lp('BUSD', delta * 0.1)  # Arbitrage 10% per day
+        redemption_queue += delta * 0.1
+    elif trunk_busd_lp.price > 1.00:  # Trunk is over $1.  "Delta" will be negative
+        trunk_busd_lp.update_lp('TRUNK', abs(delta))  # Sell trunk on PCS
+        busd_treasury += abs(delta)  # Arber would need to mint trunk from the protocol
+        if trunk_treasury > abs(delta):
+            trunk_treasury -= abs(delta)  # Comes from Trunk Treasury if there are funds
+    else:
+        pass
 
     # Incoming Funds ---------------------------------------------------------------------
     # --- Peanuts ---
@@ -261,17 +266,14 @@ for run in range(int(run_days)):
         depot_balance = 0  # depot should now be empty
 
     # Handle Liquid Trunk Selling/Redeeming ---------------------------------------------------------------------
-    # Model behavior to limit selling to close to what Bertha can actually support, based on Trunk Price
-    # TODO: This should probably just deal with what is left over after the yield payouts.  Plus need to get trunk back to Peg
-    daily_bertha_support_trunk = daily_bertha_support / trunk_busd_lp.price
-    max_trunk_to_sell = trunk_liquid_debt * daily_liquid_trunk_sales
-    # Figure out how much trunk to actually sell based on Trunk price - lower price, reduce selling
-    if redemption_queue < 25000:  # Limit selling while servicing redemption queue
-        trunk_to_sell = min(max_trunk_to_sell, daily_bertha_support_trunk / 2)
+    if peg_trunk and trunk_busd_lp.price > 0.99:  # Allow some selling
+        trunk_to_sell = trunk_busd_lp.token_bal['BUSD'] - (trunk_busd_lp.const_prod * 0.9) ** 0.5
+    elif peg_trunk:
+        trunk_to_sell = 0
     else:
-        trunk_to_sell = min(max_trunk_to_sell, daily_bertha_support_trunk)
+        trunk_to_sell = trunk_liquid_debt * daily_liquid_trunk_sales
     # Split between Redeem and Sell
-    if redeem_wait_days <= 7:  # Redemption Queue at one week time to payout
+    if redeem_wait_days <= 14:  # Redemption Queue at one week time to payout
         redemption_queue += trunk_to_sell  # Redeem Trunk
     else:
         trunk_busd_lp.update_lp('TRUNK', trunk_to_sell)  # Sell Trunk
@@ -288,6 +290,8 @@ for run in range(int(run_days)):
     trunk_treasury *= 0.9  # remove trunk from treasury paid to raffle winners
 
     # ------- Update assets and debts ----------
+    em_assets = bertha * average_ele_price + trunk_busd_lp.token_bal['BUSD'] + ele_busd_lp.token_bal['BUSD'] \
+        + ele_bnb_lp.token_bal['WBNB'] * bnb.usd_value
     daily_yield_usd = daily_available_yield * trunk_busd_lp.price
     trunk_liquid_debt = trunk_held_wallets + em_farm_tvl / 2 + staking_balance
     trunk_total_debt = trunk_liquid_debt + stampede_owed
@@ -298,13 +302,14 @@ for run in range(int(run_days)):
 
     # Output Results
     daily_snapshot = {
+        "$em_assets/m": em_assets / 1E6,
         "$funds_in/m": running_income_funds / 1E6,
         "bertha/T": bertha / 1E12,
         "$bertha/m": bertha * average_ele_price / 1E6,
         "$elephant/m": average_ele_price * 1E6,
         "$trunk": trunk_busd_lp.price,
         "$BNB": bnb.usd_value,
-        "$bertha_payouts/m": daily_bertha_support / 1E6,
+        "$bertha_payouts/m": daily_bertha_support_usd / 1E6,
         "$daily_yield/m": daily_yield_usd / 1E6,
         "$liquid_debt/m": usd_liquid_debt / 1E6,
         "liquid_debt/m": trunk_liquid_debt / 1E6,
@@ -312,7 +317,7 @@ for run in range(int(run_days)):
         "total_debt/m": trunk_total_debt / 1E6,
         "total_debt_ratio": bertha * average_ele_price / usd_total_debt,
         "liquid_debt_ratio": bertha * average_ele_price / usd_liquid_debt,
-        "daily_debt_ratio": daily_bertha_support / daily_yield_usd,  # Bertha payouts vs yield
+        "daily_debt_ratio": daily_bertha_support_usd / daily_yield_usd,  # Bertha payouts vs yield
         "redemption_queue": redemption_queue,
         "trunk_treasury": trunk_treasury,
         "trunk_support_pool": trunk_support_pool,
@@ -331,7 +336,7 @@ for run in range(int(run_days)):
     buy_w_b = min(starting_bwb * ((elephant_gain - 1) / 5 + 1), starting_bwb * 3)  # Represent FOMO into Elephant Token
     bnb_gain = bnb.usd_value / starting_bnb_price
     incoming_funds = starting_incoming * bnb_gain  # Incoming funds increasing with market (represented by BNB gain)
-    if bertha * average_ele_price > trunk_total_debt * 1.5:  # Respond to growth by increasing support payouts
+    if bertha * average_ele_price > trunk_liquid_debt * 2:  # Respond to growth by increasing support payouts
         redemption_support_apr *= 1.003
         trunk_support_apr *= 1.003
     em_data_time[day] = daily_snapshot
