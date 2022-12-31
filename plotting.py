@@ -44,19 +44,23 @@ def em_plot_funds(em_df):
 
 def em_plot_time(em_df):
     em_df['daily_debt_ratio'] = np.multiply((em_df['daily_debt_ratio']), 100)  # for better plotting
+    em_df['asset_debt_ratio'] = np.multiply(np.divide(em_df['$em_assets/m'], em_df['$liquid_debt/m']), 100)
 
     fig1, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=2)
     em_df[['$bertha/m',
-           '$liquid_debt/m']].plot(ax=axes[1, 0], ylabel='$USD (millions)',
-                                   title='Treasury and Total Debt', sharex=False, sharey=False, grid=True)
+           '$liquid_debt/m',
+           '$funds_in/m']].plot(ax=axes[0, 0], ylabel='$USD (millions)',
+                                title='Treasury, Debt, and Incoming Funds', sharex=False, sharey=False, grid=True)
     # em_df[['$bertha_payouts/m',
     #       '$daily_yield/m']].plot(ax=axes[1, 1], ylabel='$USD (millions)',
     #                               title='Earned Yield and Bertha Payouts', sharex=False, sharey=False, grid=True)
     em_df[['$trunk', '$elephant/m']].plot(ax=axes[0, 1], ylabel='$USD (ele/m)', title='Token Prices',
                                           sharex=False, sharey=False, grid=True)
-    em_df[['$funds_in/m', '$redemptions_paid/m']].plot(ax=axes[0, 0], ylabel='USD (millions)',
-                                                       title='In and Outgoing Funds',
-                                                       sharex=False, sharey=False, grid=True)
+    # em_df[['$funds_in/m', '$redemptions_paid/m']].plot(ax=axes[0, 0], ylabel='USD (millions)',
+    #                                                   title='In and Outgoing Funds',
+    #                                                   sharex=False, sharey=False, grid=True)
+    em_df['asset_debt_ratio'].plot(ax=axes[1, 0], ylabel='% Assets/Debts',
+                                   title='EM Total Assets to Debt', sharex=False, sharey=False, grid=True)
     em_df['daily_debt_ratio'].plot(ax=axes[1, 1], ylabel='% Serviceable Yields',
                                    title='% of Yield Covered by Bertha APRs',
                                    sharex=False, sharey=False, grid=True)
