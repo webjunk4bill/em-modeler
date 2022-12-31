@@ -79,8 +79,8 @@ daily_liquid_trunk_sales = 0.02  # Maximum % of trunk held to be sold in a day o
 
 # Yield Behavior (needs to add up to 100%) - only for "claim" days
 # Set these values for a fully running system.  Will be modified based on Trunk price during recovery.
-yield_to_hold = 0.0
-yield_to_stake = 0.5
+yield_to_hold = 0.05
+yield_to_stake = 0.45
 yield_to_farm = 0.3
 yield_to_bond = 0.2
 if yield_to_hold + yield_to_stake + yield_to_farm + yield_to_bond != 1:
@@ -131,6 +131,9 @@ for run in range(int(run_days)):
     average_ele_price = (ele_busd_lp.price + (ele_bnb_lp.price * bnb.usd_value)) / 2  # Should really be weighted, but
     # ...won't make a significant difference
     daily_bertha_support_usd = bertha * average_ele_price * (redemption_support_apr + trunk_support_apr)
+    em_assets_day_start = bertha * average_ele_price + trunk_busd_lp.token_bal['BUSD'] \
+                          + ele_busd_lp.token_bal['BUSD'] + ele_bnb_lp.token_bal['WBNB'] * bnb.usd_value \
+                          + busd_treasury + trunk_treasury * trunk_busd_lp.price
 
     # Handle Treasuries ---------------------------------------------------------------------
     # ------ BwB ------
@@ -290,9 +293,12 @@ for run in range(int(run_days)):
     trunk_treasury *= 0.9  # remove trunk from treasury paid to raffle winners
 
     # ------- Update assets and debts ----------
-    em_assets = bertha * average_ele_price + trunk_busd_lp.token_bal['BUSD'] + ele_busd_lp.token_bal['BUSD'] \
-        + ele_bnb_lp.token_bal['WBNB'] * bnb.usd_value
+    em_assets = bertha * average_ele_price + trunk_busd_lp.token_bal['BUSD'] \
+                + ele_busd_lp.token_bal['BUSD'] + ele_bnb_lp.token_bal['WBNB'] * bnb.usd_value \
+                + busd_treasury + trunk_treasury * trunk_busd_lp.price
+    em_income = em_assets - em_assets_day_start  # How much did the asset sheet grow
     daily_yield_usd = daily_available_yield * trunk_busd_lp.price
+    em_liquidity = em_income - daily_yield_usd
     trunk_liquid_debt = trunk_held_wallets + em_farm_tvl / 2 + staking_balance
     trunk_total_debt = trunk_liquid_debt + stampede_owed
     usd_liquid_debt = trunk_liquid_debt * trunk_busd_lp.price
@@ -303,6 +309,8 @@ for run in range(int(run_days)):
     # Output Results
     daily_snapshot = {
         "$em_assets/m": em_assets / 1E6,
+        "$em_income": em_income,
+        "$em_liquidity": em_liquidity,
         "$funds_in/m": running_income_funds / 1E6,
         "bertha/T": bertha / 1E12,
         "$bertha/m": bertha * average_ele_price / 1E6,
