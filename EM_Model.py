@@ -64,9 +64,9 @@ incoming_funds = 100000
 # below should add to 100%
 buy_w_b = 0.3
 buy_trunk_pcs = 0.1  # Trunk buys off PCS.  Assume goes to wallets for arbitrages, swing trading
-farm_depot = 0.2  # Also used for Minting
-peanuts = 0.4
-if buy_w_b + buy_trunk_pcs + farm_depot + peanuts != 1:
+farm_depot = 0.3  # Also used for Minting
+peanuts = 0.3
+if 0.99 <= buy_w_b + buy_trunk_pcs + farm_depot + peanuts >= 1.01:
     raise Exception("Incoming fund split needs to equal 100%")
 
 # Platform Sales
@@ -79,8 +79,8 @@ daily_liquid_trunk_sales = 0.02  # Maximum % of trunk held to be sold in a day o
 
 # Yield Behavior (needs to add up to 100%) - only for "claim" days
 # Set these values for a fully running system.  Will be modified based on Trunk price during recovery.
-yield_to_hold = 0.05
-yield_to_stake = 0.45
+yield_to_hold = 0.01
+yield_to_stake = 0.49
 yield_to_farm = 0.3
 yield_to_bond = 0.2
 if yield_to_hold + yield_to_stake + yield_to_farm + yield_to_bond != 1:
@@ -327,6 +327,7 @@ for run in range(int(run_days)):
         "liquid_debt_ratio": bertha * average_ele_price / usd_liquid_debt,
         "daily_debt_ratio": daily_bertha_support_usd / daily_yield_usd,  # Bertha payouts vs yield
         "redemption_queue": redemption_queue,
+        "busd_treasury": busd_treasury,
         "trunk_treasury": trunk_treasury,
         "trunk_support_pool": trunk_support_pool,
         "redemption_pool": redemption_pool,
