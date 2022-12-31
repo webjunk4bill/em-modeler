@@ -51,23 +51,32 @@ def em_plot_time(em_df):
            '$liquid_debt/m',
            '$funds_in/m']].plot(ax=axes[0, 0], ylabel='$USD (millions)',
                                 title='Treasury, Debt, and Incoming Funds', sharex=False, sharey=False, grid=True)
-    # em_df[['$bertha_payouts/m',
-    #       '$daily_yield/m']].plot(ax=axes[1, 1], ylabel='$USD (millions)',
-    #                               title='Earned Yield and Bertha Payouts', sharex=False, sharey=False, grid=True)
+    em_df[['$bertha_payouts/m',
+           '$daily_yield/m']].plot(ax=axes[1, 1], ylabel='$USD (millions)',
+                                   title='Earned Yield and Bertha Payouts', sharex=False, sharey=False, grid=True)
     em_df[['$trunk', '$elephant/m']].plot(ax=axes[0, 1], ylabel='$USD (ele/m)', title='Token Prices',
                                           sharex=False, sharey=False, grid=True)
-    # em_df[['$funds_in/m', '$redemptions_paid/m']].plot(ax=axes[0, 0], ylabel='USD (millions)',
-    #                                                   title='In and Outgoing Funds',
-    #                                                   sharex=False, sharey=False, grid=True)
+    em_df[['$funds_in/m', '$redemptions_paid/m']].plot(ax=axes[1, 0], ylabel='USD (millions)',
+                                                       title='In and Outgoing Funds',
+                                                       sharex=False, sharey=False, grid=True)
+    plt.show()
+    fig1.savefig('fig1.png')
+
+    fig2, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=2)
+    em_df[['$em_assets/m',
+           '$liquid_debt/m']].plot(ax=axes[0, 0], ylabel='$USD (millions)',
+                                   title='EM Assets and Current Liabilities', sharex=False, sharey=False, grid=True)
+    em_df['$em_liquidity'].plot(ax=axes[0, 1], ylabel='$USD', title='Elephant Money Liquidity (income v yield)',
+                                sharex=False, sharey=False, grid=True)
     em_df['asset_debt_ratio'].plot(ax=axes[1, 0], ylabel='% Assets/Debts',
                                    title='EM Total Assets to Debt', sharex=False, sharey=False, grid=True)
     em_df['daily_debt_ratio'].plot(ax=axes[1, 1], ylabel='% Serviceable Yields',
                                    title='% of Yield Covered by Bertha APRs',
                                    sharex=False, sharey=False, grid=True)
     plt.show()
-    fig1.savefig('fig1.png')
+    fig2.savefig('fig2.png')
 
-    fig2, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=3)
+    fig3, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=3)
     em_df['trunk_treasury'].plot(ax=axes[1, 2], ylabel='Treasury (Trunk)', title='Trunk Treasury Size',
                                  sharex=False, sharey=False, grid=True)
     em_df['redemption_queue'].plot(ax=axes[0, 1], ylabel='Redemption Queue USD', title='Redemption Queue Size',
@@ -78,7 +87,7 @@ def em_plot_time(em_df):
     em_df['bertha/T'].plot(ax=axes[0, 0], ylabel='Trillion Tokens', title='Bertha Size (Trillion Tokens)',
                            sharex=False, sharey=False, grid=True)
     plt.show()
-    fig2.savefig('fig2.png')
+    fig3.savefig('fig3.png')
 
 # df = pd.read_csv('output_time.csv', index_col=0, parse_dates=True)
 # df = pd.read_csv('output_funds.csv', index_col=0)
