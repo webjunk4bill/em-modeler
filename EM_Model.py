@@ -28,7 +28,7 @@ if read_blockchain:
     pickle.dump(to_pickle, f)
     f.close()
 else:
-    f_o = open('chainData_2022-12-28.pkl', 'rb')  # TODO: figure out how to update this automatically
+    f_o = open('chainData_2023-01-03.pkl', 'rb')  # TODO: figure out how to update this automatically
     from_pickle = pickle.load(f_o)
     f_o.close()
     [ele_bnb_lp, ele_busd_lp, trunk_busd_lp, bnb, bertha, busd_treasury, trunk_treasury] = from_pickle
@@ -110,7 +110,7 @@ starting_incoming = incoming_funds
 
 # ------ Set up BNB changes ------
 # TODO: Turn this into a function.  it can definitely be cleaned up.
-start = date(2022, 10, 1)  # Use the previous quarter start
+start = date(2023, 1, 1)  # Use the previous quarter start
 periods = run_quarters + 2  # we are starting one quarter back from today's date and want to go an extra quarter
 sparse_range = pd.date_range(start, periods=periods, freq="QS")
 full_range = pd.date_range(start, sparse_range.date[-1])
