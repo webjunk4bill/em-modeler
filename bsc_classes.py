@@ -156,4 +156,50 @@ def elephant_sell(funds, busd_lp, bnb_lp, bnb_price):
     return tok_removed
 
 
+class YieldEngine:
+    def __init__(self, deposit, day_rate, max_payout):
+        """
+        This represents the new engine based on Farm Depot and Elephant Futures
+        Deposit in $.  Day Rate in %/day.  Max Payout as a multiplier of the deposit.
+        """
+        self.deposits = deposit
+        self.deposit_base = deposit  # Deposit base is needed to properly keep track of yield payout rates
+        self.max_payout = max_payout
+        self.balance = deposit * self.max_payout
+        self.rate = day_rate
+        self.available = 0
+        self.claimed = 0
+        self.daily_payout = self.deposit_base * self.rate
+
+    def pass_days(self, days):
+        """
+        Update the engine balances based on number of days passed
+        """
+        if self.balance >= self.daily_payout * days:
+            self.available += self.daily_payout * days
+            self.balance -= self.daily_payout * days
+        else:
+            self.available += self.balance
+            self.balance = 0
+
+    def claim(self):
+        """
+        Perform a claim of the available balance
+        """
+        claimed = self.available
+        self.claimed += claimed
+        self.available = 0
+
+        return claimed
+
+    def deposit(self, deposit):
+        """
+        Perform a new deposit
+        """
+        self.deposit_base = self.balance / self.max_payout + deposit
+        self.deposits += deposit
+        self.balance += deposit * self.max_payout
+        self.daily_payout = self.deposit_base * self.rate
+
+
 # TODO: Create treasuries class to handle functions associated with BUSD, Bertha, Trunk treasuries
