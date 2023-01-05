@@ -114,6 +114,8 @@ class CakeLP:
             self.tokens_removed = old - self.token_bal[first]
         self.price = self.get_price()
 
+        return self.tokens_removed
+
 
 class GetWalletBalance:
     def __init__(self, addr, token_addr):

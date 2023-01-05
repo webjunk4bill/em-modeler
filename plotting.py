@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import datetime as dt
 
 plt.close("all")
 
@@ -60,7 +61,7 @@ def em_plot_time(em_df):
                                                        title='In and Outgoing Funds',
                                                        sharex=False, sharey=False, grid=True)
     plt.show()
-    fig1.savefig('fig1.png')
+    fig1.savefig('outputs/fig1_{0}.png'.format(dt.datetime.today()))
 
     fig2, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=2)
     em_df[['$em_assets/m',
@@ -74,7 +75,7 @@ def em_plot_time(em_df):
                                    title='% of Yield Covered by Bertha APRs',
                                    sharex=False, sharey=False, grid=True)
     plt.show()
-    fig2.savefig('fig2.png')
+    fig2.savefig('outputs/fig2_{0}.png'.format(dt.datetime.today()))
 
     fig3, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=3)
     em_df['trunk_treasury'].plot(ax=axes[1, 2], ylabel='Treasury (Trunk)', title='Trunk Treasury Size',
@@ -87,9 +88,10 @@ def em_plot_time(em_df):
     em_df['bertha/T'].plot(ax=axes[0, 0], ylabel='Trillion Tokens', title='Bertha Size (Trillion Tokens)',
                            sharex=False, sharey=False, grid=True)
     plt.show()
-    fig3.savefig('fig3.png')
+    fig3.savefig('outputs/fig3_{0}.png'.format(dt.datetime.today()))
 
-# df = pd.read_csv('output_time.csv', index_col=0, parse_dates=True)
-# df = pd.read_csv('output_funds.csv', index_col=0)
+
+# df = pd.read_csv('outputs/output_time.csv', index_col=0, parse_dates=True)
+# df = pd.read_csv('outputs/output_funds.csv', index_col=0)
 # em_plot_time(df)
 # em_plot_funds(df)
