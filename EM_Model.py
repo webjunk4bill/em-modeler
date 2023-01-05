@@ -28,7 +28,7 @@ if read_blockchain:
     pickle.dump(to_pickle, f)
     f.close()
 else:
-    f_o = open('chainData_2023-01-03.pkl', 'rb')  # TODO: figure out how to update this automatically
+    f_o = open('chainData_2022-12-28.pkl', 'rb')  # TODO: figure out how to update this automatically
     from_pickle = pickle.load(f_o)
     f_o.close()
     [ele_bnb_lp, ele_busd_lp, trunk_busd_lp, bnb, bertha, busd_treasury, trunk_treasury] = from_pickle
@@ -41,6 +41,8 @@ redemption_queue = 1.44E6
 staking_balance = 9.078E6
 em_farm_tvl = 7.265E6  # Yield is paid out on TVL
 em_farm_balance = em_farm_tvl / 2  # This is the total trunk balance in the farms
+farm_depot_tvl = 407938  # In Trunk
+farm_depot_claimed = 630586  # In Trunk
 stampede_bonds = 55.42E6
 stampede_payouts = 57.94E6
 stampede_owed = 2.05 * stampede_bonds - stampede_payouts  # Total platform debt as of "today"
@@ -64,9 +66,9 @@ incoming_funds = 100000
 # below should add to 100%
 buy_w_b = 0.3
 buy_trunk_pcs = 0.1  # Trunk buys off PCS.  Assume goes to wallets for arbitrages, swing trading
-farm_depot = 0.3  # Also used for Minting
-peanuts = 0.3
-if 0.99 <= buy_w_b + buy_trunk_pcs + farm_depot + peanuts >= 1.01:
+buy_depot = 0.3  # Also used for Minting
+buy_peanuts = 0.3
+if 0.99 <= buy_w_b + buy_trunk_pcs + buy_depot + buy_peanuts >= 1.01:
     raise Exception("Incoming fund split needs to equal 100%")
 
 # Platform Sales
@@ -97,6 +99,7 @@ while i <= cycles:  # Create full schedule for rolls and claims
     for j in schedule:
         roll_claim.append(j)
     i += 1
+# Initialize Variables
 day = pd.to_datetime(date.today())
 em_data_time = {}
 em_data_funds = {}
@@ -107,6 +110,9 @@ starting_trunk_price = trunk_busd_lp.price
 starting_bnb_price = bnb.usd_value
 starting_bwb = buy_w_b
 starting_incoming = incoming_funds
+farmers_depot = bsc.YieldEngine(farm_depot_tvl + farm_depot_claimed, 1/30, 1)  # Set up Farmer's Depot Yield Engine
+farmers_depot.balance = farm_depot_tvl
+farmers_depot.claimed = farm_depot_claimed  # need to do a manual update of what has happened to date
 
 # ------ Set up BNB changes ------
 # TODO: Turn this into a function.  it can definitely be cleaned up.
@@ -145,7 +151,7 @@ for run in range(int(run_days)):
     busd_removed = bsc.elephant_sell(ele_sold * 0.92, ele_busd_lp, ele_bnb_lp, bnb.usd_value)
     bertha += ele_sold * 0.08
     # ------ Farmer's Depot and Peanuts ------
-    busd_treasury += (farm_depot + peanuts) * incoming_funds
+    busd_treasury += (buy_depot + buy_peanuts) * incoming_funds
     # TODO: Elephant Market Buy
     # TODO: Elephant Market Sell
 
@@ -225,6 +231,12 @@ for run in range(int(run_days)):
     # Once Peg is hit, this is the same as minting
     trunk_busd_lp.update_lp('BUSD', buy_trunk_pcs * incoming_funds)  # purchase trunk
     kept_yield += trunk_busd_lp.tokens_removed
+    # --- Farmer's Depot ---
+    farmers_depot.pass_days(1)  # Update depot by 1 day
+    depot_claim = farmers_depot.claim()
+    kept_yield += depot_claim  # Claim available funds and deposit based on ratios
+    if trunk_treasury > depot_claim:
+        trunk_treasury -= depot_claim  # Trunk will be paid from treasury vs minted
     # --- Update Balances ---
     if kept_yield > 0:
         staking_balance += kept_yield * yield_to_stake
@@ -250,23 +262,15 @@ for run in range(int(run_days)):
 
     # Incoming Funds ---------------------------------------------------------------------
     # --- Peanuts ---
-    stampede_bonds += peanuts * incoming_funds / max(trunk_busd_lp.price, 0.25)
+    stampede_bonds += buy_peanuts * incoming_funds / max(trunk_busd_lp.price, 0.25)
     # --- Farmer's Depot ---
-    # Split depot between farm and staking (say 70/30?)  Worst case would be all in farm due to higher yields
-    depot_buy = farm_depot * incoming_funds / max(trunk_busd_lp.price, 0.25)
+    depot_buy = buy_depot * incoming_funds / max(trunk_busd_lp.price, 0.25)
+    if trunk_busd_lp.price < 0.98:  # 10% of funds auto purchase market Trunk if below $0.98
+        trunk_treasury += trunk_busd_lp.update_lp('BUSD', depot_buy * 0.1)
+        depot_buy *= 0.9
+    farmers_depot.deposit(depot_buy)  # Deposit in terms of Trunk, not BUSD
     depot_deposits += depot_buy  # Need to track both the total deposits and what is remaining
     depot_balance += depot_buy
-    # --- Distribute Depot Funds ---
-    if depot_balance > depot_deposits / 30:  # Depot pays out 3.33% per day
-        em_farm_tvl += depot_deposits / 30 * 2  # TVL goes up by double what was put in
-        depot_balance -= depot_deposits / 30
-        if trunk_treasury > depot_deposits / 30:  # Take funds from trunk treasury if available
-            trunk_treasury -= depot_deposits / 30
-    else:
-        em_farm_tvl += depot_balance * 2  # TVL goes up by double what was put in
-        if trunk_treasury > depot_balance:
-            trunk_treasury -= depot_balance
-        depot_balance = 0  # depot should now be empty
 
     # Handle Liquid Trunk Selling/Redeeming ---------------------------------------------------------------------
     if peg_trunk and trunk_busd_lp.price > 0.99:  # Allow some selling
@@ -336,6 +340,7 @@ for run in range(int(run_days)):
         "trunk_wallets/m": trunk_held_wallets / 1E6,
         'farm_tvl/m': em_farm_tvl / 1E6,
         "redemption_queue_wait": redeem_wait_days,
+        "farmers_depot": farmers_depot.balance,
     }
 
     # Make daily updates and model increases in interest as protocol grows
@@ -358,8 +363,8 @@ for run in range(int(run_days)):
 
 em_dataframe_time = pd.DataFrame(em_data_time).T
 em_dataframe_funds = pd.DataFrame(em_data_funds).T
-em_dataframe_time.to_csv('output_time.csv')
-em_dataframe_funds.to_csv('output_funds.csv')
+em_dataframe_time.to_csv('outputs/output_time.csv')
+em_dataframe_funds.to_csv('outputs/output_funds.csv')
 em_plot_time(em_dataframe_time)
 # em_plot_funds(em_dataframe_funds)
 print("Done")
