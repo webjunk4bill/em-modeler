@@ -9,7 +9,7 @@ from datetime import date
 import pickle
 
 
-def get_em_data(read_blockchain):
+def get_em_data(*, read_blockchain: bool = False):
     """
     This function initializes all the EM Platform data
     It will return a dictionary with all the parameter values
@@ -76,4 +76,4 @@ def get_em_data(read_blockchain):
     return em_data
 
 
-data = get_em_data(True)
+# data = get_em_data(True)
