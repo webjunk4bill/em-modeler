@@ -8,7 +8,7 @@ from em_data import get_em_data
 
 # Get EM Protocol Data
 # Some manual input is necessary in em_data.py due to inability to read some EM contracts
-em_data = get_em_data(False)  # False = pull from pickle vs query blockchain
+em_data = get_em_data(read_blockchain=False)  # False = pull from pickle vs query blockchain
 
 # Run Model Setup (starting funds, run quarters, current BNB price)
 # Edit parameters in setup_run.py to adjust model parameters
