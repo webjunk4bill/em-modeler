@@ -53,13 +53,13 @@ def em_plot_time(em_df):
            '$funds_in/m']].plot(ax=axes[0, 0], ylabel='$USD (millions)',
                                 title='Treasury, Debt, and Incoming Funds', sharex=False, sharey=False, grid=True)
     em_df[['$bertha_payouts/m',
-           '$daily_yield/m']].plot(ax=axes[1, 1], ylabel='$USD (millions)',
+           '$daily_yield/m']].plot(ax=axes[1, 0], ylabel='$USD (millions)',
                                    title='Earned Yield and Bertha Payouts', sharex=False, sharey=False, grid=True)
-    em_df[['$trunk', '$elephant/m']].plot(ax=axes[0, 1], ylabel='$USD (ele/m)', title='Token Prices',
-                                          sharex=False, sharey=False, grid=True)
-    em_df[['$funds_in/m', '$redemptions_paid/m']].plot(ax=axes[1, 0], ylabel='USD (millions)',
-                                                       title='In and Outgoing Funds',
-                                                       sharex=False, sharey=False, grid=True)
+    em_df['$elephant/m'].plot(ax=axes[0, 1], ylabel='$USD (ele/m)', title='Elephant Price (per million)',
+                              sharex=False, sharey=False, grid=True)
+    em_df['$trunk'].plot(ax=axes[1, 1], ylabel='$USD', title='Trunk Price',
+                         sharex=False, sharey=False, grid=True)
+
     plt.show()
     fig1.savefig('outputs/fig1_{0}.png'.format(dt.datetime.today()))
 
@@ -78,18 +78,29 @@ def em_plot_time(em_df):
     fig2.savefig('outputs/fig2_{0}.png'.format(dt.datetime.today()))
 
     fig3, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=3)
-    em_df['trunk_treasury'].plot(ax=axes[1, 2], ylabel='Treasury (Trunk)', title='Trunk Treasury Size',
-                                 sharex=False, sharey=False, grid=True)
+    em_df['bonds'].plot(ax=axes[1, 2], ylabel='Bonds', title='Stampede Bonds',
+                        sharex=False, sharey=False, grid=True)
     em_df['redemption_queue'].plot(ax=axes[0, 1], ylabel='Redemption Queue USD', title='Redemption Queue Size',
                                    sharex=False, sharey=False, grid=True)
-    em_df['staking_balance/m'].plot(ax=axes[1, 0], ylabel='Trunk (millions)', title='Staking Balance')
-    em_df['trunk_wallets/m'].plot(ax=axes[1, 1], ylabel='Trunk (millions)', title='Trunk Held in Wallets')
-    em_df['farm_tvl/m'].plot(ax=axes[0, 2], title='EM Farms TVL', ylabel='Trunk (millions)')
+    em_df['staking_balance/m'].plot(ax=axes[1, 0], ylabel='Trunk (millions)', title='Staking Balance', grid=True)
+    em_df['trunk_wallets/m'].plot(ax=axes[1, 1], ylabel='Trunk (millions)', title='Trunk Held in Wallets', grid=True)
+    em_df['farm_tvl/m'].plot(ax=axes[0, 2], title='EM Farms TVL', ylabel='Trunk (millions)', grid=True)
     em_df['bertha/T'].plot(ax=axes[0, 0], ylabel='Trillion Tokens', title='Bertha Size (Trillion Tokens)',
                            sharex=False, sharey=False, grid=True)
     plt.show()
     fig3.savefig('outputs/fig3_{0}.png'.format(dt.datetime.today()))
 
+    fig4, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=2)
+    em_df['queue_wait'].plot(ax=axes[0, 0], ylabel='Days', title='Redemption Queue Payout Wait',
+                             sharex=False, sharey=False, grid=True)
+    em_df['daily_ele_growth'].plot(ax=axes[0, 1], ylabel='% Growth', title='Daily Elephant Purchase Growth',
+                                   sharex=False, sharey=False, grid=True)
+    em_df['daily_futures_growth'].plot(ax=axes[1, 0], ylabel='% Growth',
+                                       title='Daily Futures Growth', grid=True)
+    em_df['daily_total_growth'].plot(ax=axes[1, 1], ylabel='% Growth', title='Total Platform Daily Growth', grid=True)
+
+    plt.show()
+    fig4.savefig('outputs/fig4_{0}.png'.format(dt.datetime.today()))
 
 # df = pd.read_csv('outputs/output_time.csv', index_col=0, parse_dates=True)
 # df = pd.read_csv('outputs/output_funds.csv', index_col=0)
