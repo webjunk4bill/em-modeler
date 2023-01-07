@@ -33,9 +33,9 @@ def setup_run(daily_funds, run_quarters, bnb_price):
     # ele_market_buy = 0
     # ele_market_sell = 0
     model_setup['peg_trunk'] = True  # This will over-ride the amount of sales in order to keep Trunk near $1
-    model_setup['yield_sales'] = 0.5  # % of daily available yield to sell (at PEG)
+    model_setup['yield_sales'] = 0.75  # % of daily available yield to sell (at PEG)
     # Maximum % of trunk held to be sold in a day only *if* the platform can support it.
-    model_setup['daily_liquid_trunk_sales'] = 0.02
+    model_setup['daily_liquid_trunk_sales'] = 0.01
 
     # Kept Yield Behavior (needs to add up to 100%) - takes place after the sales % in "yield_sales"
     # Set these values for a fully running system.  Will be modified based on Trunk price during recovery.
@@ -79,12 +79,18 @@ def setup_run(daily_funds, run_quarters, bnb_price):
     # --- EM Growth ---
     # ---  Quarters: ['23 Jan, Apr, Jul, Oct, '24 Jan, Apr, July, Oct, '25 Jan, Apr, July, Oct]
     # BwB
-    ele_buy_multiplier = [1, 8, 16, 32, 32, 32, 32, 32, 32, 32, 32, 32]
+    # bwb_daily_rate = 0.0055
+    # ele_buy_multiplier = []
+    # days = (periods - 1) * 365 / 4 + 2  # Not sure why this is coming off by a could days...
+    # for i in range(int(days)):
+    #    ele_buy_multiplier.append((1 + bwb_daily_rate) ** i)
+    ele_buy_multiplier = [1, 3, 9, 23, 46, 75, 95, 160, 160, 160, 180, 200]
     temp_ele_s = pd.Series(ele_buy_multiplier, index=sparse_range)
     temp_ele_full = pd.Series(temp_ele_s, index=full_range).interpolate()
     model_setup['buy_w_b'] = np.multiply(temp_ele_full, buy_w_b * daily_funds)  # This in $USD
     # Other Income
-    income_multiplier = [1, 2, 4, 6, 8, 10, 12, 12, 12, 12, 12, 12]
+    # Futures requires around 1.5x growth per quarter to pay for itself
+    income_multiplier = [1, 1.5, 2.5, 4, 6, 9, 14, 14, 14, 14, 14, 14]
     temp_income_s = pd.Series(income_multiplier, index=sparse_range)
     temp_income_full = pd.Series(temp_income_s, index=full_range).interpolate()
     model_setup['buy_trunk_pcs'] = np.multiply(temp_income_full, buy_trunk_pcs * daily_funds)
