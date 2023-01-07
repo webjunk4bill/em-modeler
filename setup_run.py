@@ -1,6 +1,7 @@
 """
 This file should be used to set the parameters required to run the model
 """
+import numpy as np
 import pandas as pd
 from datetime import date
 
@@ -19,21 +20,16 @@ def setup_run(daily_funds, run_quarters, bnb_price):
     # Incoming Funds - use total and the split by %
     # below should add to 100%
     # These are starting values.  They can be adjusted during the run as needed (FOMO, etc.)
-    buy_w_b = 0.1
-    buy_trunk_pcs = 0.05  # Trunk buys off PCS.  Assume goes to wallets for arbitrages, swing trading
+    buy_w_b = 0.2
+    buy_trunk_pcs = 0.01  # Trunk buys off PCS.  Assume goes to wallets for arbitrages, swing trading
     buy_depot = 0.05  # Also used for Minting
-    buy_peanuts = 0.05
-    buy_futures = 0.75
+    buy_peanuts = 0.025
+    buy_futures = 0.715
     if 0.99 <= buy_w_b + buy_trunk_pcs + buy_depot + buy_peanuts + buy_futures >= 1.01:
         raise Exception("Incoming fund split needs to equal 100%")
-    model_setup['buy_w_b'] = buy_w_b * daily_funds
-    model_setup['buy_trunk_pcs'] = buy_trunk_pcs * daily_funds
-    model_setup['buy_depot'] = buy_depot * daily_funds
-    model_setup['buy_peanuts'] = buy_peanuts * daily_funds
-    model_setup['buy_futures'] = buy_futures * daily_funds
 
     # Platform Sales
-    model_setup['sell_w_b'] = 0  # In USD
+    model_setup['sell_w_b'] = 0.1  # Percentage of BwB volume
     # ele_market_buy = 0
     # ele_market_sell = 0
     model_setup['peg_trunk'] = True  # This will over-ride the amount of sales in order to keep Trunk near $1
@@ -63,14 +59,13 @@ def setup_run(daily_funds, run_quarters, bnb_price):
         i += 1
     # Initialize Variables
     model_setup['day'] = pd.to_datetime(date.today())
-    model_setup['start_bwb'] = model_setup['buy_w_b']
-    model_setup['start_incoming'] = daily_funds
 
-    # ------ Set up BNB changes ------
+    # ------ Set up Growth ------
     start = date(2023, 1, 1)  # Use the previous quarter start
     periods = run_quarters + 2  # we are starting one quarter back from today's date and want to go an extra quarter
     sparse_range = pd.date_range(start, periods=periods, freq="QS")
     full_range = pd.date_range(start, sparse_range.date[-1])
+    # --- BNB Growth ---
     # Look for a bull run in 2024.  Start the first two values with the current price
     # bnb_price_movement = [bnb.usd_value, bnb.usd_value, 275, 300, 325, 350, 375, 400, 500, 600,
     #                      650, 700, 725, 750, 650, 625, 700, 750, 800, 800, 750, 800]
@@ -80,6 +75,22 @@ def setup_run(daily_funds, run_quarters, bnb_price):
         raise Exception("BNB Price range does not match date range")
     temp_bnb_s = pd.Series(bnb_price_movement, index=sparse_range)
     model_setup['bnb_price_s'] = pd.Series(temp_bnb_s, index=full_range).interpolate()  # get a daily price increase
+
+    # --- EM Growth ---
+    # ---  Quarters: ['23 Jan, Apr, Jul, Oct, '24 Jan, Apr, July, Oct, '25 Jan, Apr, July, Oct]
+    # BwB
+    ele_buy_multiplier = [1, 8, 16, 32, 32, 32, 32, 32, 32, 32, 32, 32]
+    temp_ele_s = pd.Series(ele_buy_multiplier, index=sparse_range)
+    temp_ele_full = pd.Series(temp_ele_s, index=full_range).interpolate()
+    model_setup['buy_w_b'] = np.multiply(temp_ele_full, buy_w_b * daily_funds)  # This in $USD
+    # Other Income
+    income_multiplier = [1, 2, 4, 6, 8, 10, 12, 12, 12, 12, 12, 12]
+    temp_income_s = pd.Series(income_multiplier, index=sparse_range)
+    temp_income_full = pd.Series(temp_income_s, index=full_range).interpolate()
+    model_setup['buy_trunk_pcs'] = np.multiply(temp_income_full, buy_trunk_pcs * daily_funds)
+    model_setup['buy_depot'] = np.multiply(temp_income_full, buy_depot * daily_funds)
+    model_setup['buy_peanuts'] = np.multiply(temp_income_full, buy_peanuts * daily_funds)
+    model_setup['buy_futures'] = np.multiply(temp_income_full, buy_futures * daily_funds)
 
     return model_setup
 

@@ -12,12 +12,13 @@ em_data = get_em_data(read_blockchain=False)  # False = pull from pickle vs quer
 
 # Run Model Setup (starting funds, run quarters, current BNB price)
 # Edit parameters in setup_run.py to adjust model parameters
-model_setup = setup_run(100000, 10, em_data['bnb'].usd_value)
+model_setup = setup_run(50000, 10, em_data['bnb'].usd_value)
+# initialize variables
 redemptions_paid = 0
 running_income_funds = 0
 model_output = {}
 
-# Run Model
+# Create and Run Model
 for run in range(int(model_setup['run_days'])):
     # Daily Bertha Support ---------------------------------------------------------------------
     average_ele_price = (em_data['ele_busd_lp'].price + (em_data['ele_bnb_lp'].price * em_data['bnb'].usd_value)) / 2
@@ -28,17 +29,18 @@ for run in range(int(model_setup['run_days'])):
                           em_data['bnb'].usd_value + em_data['busd_treasury'] + em_data['trunk_treasury'] * \
                           em_data['trunk_busd_lp'].price
 
-    # Get Initial Prices -----------------------------------------------------------------------
+    # Get Day Start Prices -----------------------------------------------------------------------
     begin_ele_price = average_ele_price
     begin_bnb_price = em_data['bnb'].usd_value
     begin_trunk_price = em_data['trunk_busd_lp'].price
 
     # Incoming Funds ---------------------------------------------------------------------
     # --- Peanuts ---
-    em_data['stampede_bonds'] += model_setup['buy_peanuts'] / max(em_data['trunk_busd_lp'].price, 0.25)
-    em_data['busd_treasury'] += model_setup['buy_peanuts']
+    em_data['stampede_bonds'] += model_setup['buy_peanuts'][model_setup['day']] /\
+                                 max(em_data['trunk_busd_lp'].price, 0.25)
+    em_data['busd_treasury'] += model_setup['buy_peanuts'][model_setup['day']]
     # --- Farmer's Depot ---
-    depot_buy_usd = model_setup['buy_depot']  # Don't want to directly modify the starting value
+    depot_buy_usd = model_setup['buy_depot'][model_setup['day']]  # Don't want to directly modify the starting value
     if em_data['trunk_busd_lp'].price < 0.98:  # 10% of funds auto purchase market Trunk if below $0.98
         em_data['trunk_treasury'] += em_data['trunk_busd_lp'].update_lp('BUSD', depot_buy_usd * 0.1)
         depot_buy_usd *= 0.9
@@ -46,17 +48,17 @@ for run in range(int(model_setup['run_days'])):
     em_data['farmers_depot'].deposit(depot_buy)
     em_data['busd_treasury'] += depot_buy_usd  # funds go to busd treasury
     # --- Futures ---
-    em_data['em_futures'].deposit(model_setup['buy_futures'])  # Deposit Futures funds
-    em_data['futures_busd_pool'] += model_setup['buy_futures'] * 0.1  # 10% hold for payouts
-    em_data['busd_treasury'] += model_setup['buy_futures'] * 0.9  # remainder to busd treasury
+    em_data['em_futures'].deposit(model_setup['buy_futures'][model_setup['day']])  # Deposit Futures funds
+    em_data['futures_busd_pool'] += model_setup['buy_futures'][model_setup['day']] * 0.1  # 10% hold for payouts
+    em_data['busd_treasury'] += model_setup['buy_futures'][model_setup['day']] * 0.9  # remainder to busd treasury
 
     # Handle Elephant Buy/Sell ---------------------------------------------------------------------
     # ------ BwB ------
-    ele_bought = bsc.elephant_buy(model_setup['buy_w_b'], em_data['ele_busd_lp'], em_data['ele_bnb_lp'],
-                                  em_data['bnb'].usd_value)
+    ele_bought = bsc.elephant_buy(model_setup['buy_w_b'][model_setup['day']], em_data['ele_busd_lp'],
+                                  em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
     em_data['bertha'] += ele_bought * 0.08  # 8% tax to Bertha
     # ------ SwB ------
-    ele_sold = model_setup['sell_w_b'] / average_ele_price
+    ele_sold = model_setup['sell_w_b'] * model_setup['buy_w_b'][model_setup['day']] / average_ele_price
     # 92% of Elephant sold goes to LP, 8% to Bertha
     busd_removed = bsc.elephant_sell(ele_sold * 0.92, em_data['ele_busd_lp'], em_data['ele_bnb_lp'],
                                      em_data['bnb'].usd_value)
@@ -155,7 +157,7 @@ for run in range(int(model_setup['run_days'])):
     # ------ Update balances based on kept yield ------
     # --- Buys off PCS - included here so that it can use the same deposit ratios defined
     # Once Peg is hit, this is the same as minting
-    em_data['trunk_busd_lp'].update_lp('BUSD', model_setup['buy_trunk_pcs'])  # purchase trunk
+    em_data['trunk_busd_lp'].update_lp('BUSD', model_setup['buy_trunk_pcs'][model_setup['day']])  # purchase trunk
     kept_yield += em_data['trunk_busd_lp'].tokens_removed
     # --- Farmer's Depot ---
     em_data['farmers_depot'].pass_days(1)  # Update depot by 1 day
@@ -227,11 +229,11 @@ for run in range(int(model_setup['run_days'])):
     trunk_total_debt = em_data['trunk_liquid_debt'] + em_data['stampede_owed']
     usd_liquid_debt = em_data['trunk_liquid_debt'] * em_data['trunk_busd_lp'].price
     usd_total_debt = trunk_total_debt * em_data['trunk_busd_lp'].price
-    running_income_funds += model_setup['buy_w_b'] + \
-                            model_setup['buy_trunk_pcs'] + \
-                            model_setup['buy_depot'] + \
-                            model_setup['buy_peanuts'] + \
-                            model_setup['buy_futures']
+    running_income_funds += model_setup['buy_w_b'][model_setup['day']] + \
+                            model_setup['buy_trunk_pcs'][model_setup['day']] + \
+                            model_setup['buy_depot'][model_setup['day']] + \
+                            model_setup['buy_peanuts'][model_setup['day']] + \
+                            model_setup['buy_futures'][model_setup['day']]
 
     # Output Results
     daily_snapshot = {
@@ -270,14 +272,6 @@ for run in range(int(model_setup['run_days'])):
     # Make daily updates and model increases in interest as protocol grows
     model_setup['day'] += pd.Timedelta("1 day")
     em_data['bnb'].usd_value = model_setup['bnb_price_s'][model_setup['day']]  # Update BNB value
-    # TODO: Re-create FOMO section
-    elephant_gain = average_ele_price / begin_ele_price
-    model_setup['buy_w_b'] *= 1 + ((elephant_gain - 1) / 4)  # FOMO: 25% increase for every double in price
-    bnb_gain = em_data['bnb'].usd_value / begin_bnb_price
-    model_setup['buy_trunk_pcs'] *= bnb_gain
-    model_setup['buy_depot'] *= bnb_gain
-    model_setup['buy_peanuts'] *= bnb_gain
-    model_setup['buy_futures'] *= bnb_gain
     model_output[model_setup['day']] = daily_snapshot
 
 # for debug, setting break point
