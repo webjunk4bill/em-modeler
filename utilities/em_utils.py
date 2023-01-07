@@ -16,7 +16,7 @@ def parabolic_bertha(bertha, funds_in, support_apr, bnb_lp, busd_lp, bnb_price, 
     b_tok = {}
     b_val = {}
     running_funds = 0
-    futures = bsc.YieldEngine(0, 0.002, 2)
+    futures = bsc.YieldEngine(0, 0.01, 2)
     for i in range(int(days)):
         claimed = futures.claim()
         running_funds += funds_in
@@ -31,6 +31,7 @@ def parabolic_bertha(bertha, funds_in, support_apr, bnb_lp, busd_lp, bnb_price, 
         b_tok[running_funds / 1E6] = bertha / 1E12
         b_val[running_funds / 1E6] = bertha_usd / 1E6
         futures.pass_days(1)
+        funds_in *= 1.0046
 
     return b_tok, b_val
 
