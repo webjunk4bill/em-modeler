@@ -145,15 +145,15 @@ for run in range(int(model_setup['run_days'])):
         em_data['trunk_treasury'] -= kept_yield
 
     # ------ Determine community Peg support and sales amount ------
-    if model_setup['peg_trunk'] and em_data['trunk_busd_lp'].price < 0.8:
-        trunk_sales = daily_bertha_support_usd / 2  # By looking at only USD, will keep selling low while $trunk is low
+    if model_setup['peg_trunk'] and em_data['trunk_busd_lp'].price < 1:
+        trunk_sales = daily_bertha_support_usd  # By looking at only USD, will keep selling low while $trunk is low
     elif model_setup['peg_trunk']:  # Allow up to 10% drop in Trunk Price
         trunk_sales = (1 - 0.9 ** 0.5) * em_data['trunk_busd_lp'].token_bal['TRUNK']
     else:
-        trunk_sales = kept_yield * model_setup['yield_sales']
+        trunk_sales = kept_yield * model_setup['yield_sales'] * em_data['trunk_busd_lp'].price
 
     # ------ Yield Redemption/Sales ------
-    if redeem_wait_days <= 14:  # This can be adjusted, just guessing
+    if redeem_wait_days <= 30:  # This can be adjusted, just guessing
         em_data['redemption_queue'] += trunk_sales
     else:
         em_data['trunk_busd_lp'].update_lp('TRUNK', trunk_sales)
@@ -179,12 +179,13 @@ for run in range(int(model_setup['run_days'])):
         em_data['trunk_liquid_debt'] = em_data['staking_balance'] + em_data['farm_tvl'] / 2 + \
                                        em_data['trunk_held_wallets']  # Update liquid debt
         em_data['stampede_bonds'] += kept_yield * model_setup['yield_to_bond']
+        em_data['stampede_owed'] += kept_yield * model_setup['yield_to_bond'] * 2.05
 
     # ------ Arbitrage Trunk LP with Redemption Pool or Minting ------
     # TODO: This can be made a function or class
     # SQRT(CP) will give perfect split.
     delta = (em_data['trunk_busd_lp'].const_prod ** 0.5 - em_data['trunk_busd_lp'].token_bal['BUSD'])
-    if em_data['trunk_busd_lp'].price <= 1.00 and redeem_wait_days < 30:  # No arbitrage until queue is reasonable.
+    if em_data['trunk_busd_lp'].price <= 1.00 and redeem_wait_days < 25:  # No arbitrage until queue is reasonable.
         em_data['trunk_busd_lp'].update_lp('BUSD', delta * 0.1)  # Arbitrage 10% per day
         em_data['redemption_queue'] += delta * 0.1
     elif em_data['trunk_busd_lp'].price > 1.00:  # Trunk is over $1.  "Delta" will be negative
@@ -200,20 +201,24 @@ for run in range(int(model_setup['run_days'])):
         trunk_to_sell = em_data['trunk_busd_lp'].token_bal['BUSD'] - (em_data['trunk_busd_lp'].const_prod * 0.9) ** 0.5
     elif model_setup['peg_trunk']:
         trunk_to_sell = 0
-    else:
+    elif em_data['trunk_busd_lp'].price > 0.5:
         trunk_to_sell = em_data['trunk_liquid_debt'] * model_setup['daily_liquid_trunk_sales']
-    # Split between Redeem and Sell
-    if redeem_wait_days <= 14:  # Redemption Queue at one week time to payout
-        em_data['redemption_queue'] += trunk_to_sell  # Redeem Trunk
     else:
-        em_data['trunk_busd_lp'].update_lp('TRUNK', trunk_to_sell)  # Sell Trunk
-    # Decide where sold trunk should come from.  Use a weighted % of holdings
-    wallet_ratio = em_data['trunk_held_wallets'] / em_data['trunk_liquid_debt']
-    em_data['trunk_held_wallets'] -= wallet_ratio * trunk_to_sell
-    stake_ratio = em_data['staking_balance'] / em_data['trunk_liquid_debt']
-    em_data['staking_balance'] -= stake_ratio * trunk_to_sell
-    farm_ratio = em_data['farm_tvl'] / 2 / em_data['trunk_liquid_debt']
-    em_data['farm_tvl'] -= farm_ratio * trunk_to_sell * 2
+        trunk_to_sell = 0
+    # Split between Redeem and Sell
+    # Need to ensure there is actually trunk left to sell
+    if em_data['trunk_held_wallets'] > 0 and em_data['staking_balance'] > 0 and em_data['farm_tvl'] > 2:
+        if redeem_wait_days <= 30:  # Redemption Queue at one week time to payout
+            em_data['redemption_queue'] += trunk_to_sell  # Redeem Trunk
+        else:
+            em_data['trunk_busd_lp'].update_lp('TRUNK', trunk_to_sell)  # Sell Trunk
+        # Decide where sold trunk should come from.  Use a weighted % of holdings
+        wallet_ratio = em_data['trunk_held_wallets'] / em_data['trunk_liquid_debt']
+        em_data['trunk_held_wallets'] -= wallet_ratio * trunk_to_sell
+        stake_ratio = em_data['staking_balance'] / em_data['trunk_liquid_debt']
+        em_data['staking_balance'] -= stake_ratio * trunk_to_sell
+        farm_ratio = em_data['farm_tvl'] / 2 / em_data['trunk_liquid_debt']
+        em_data['farm_tvl'] -= farm_ratio * trunk_to_sell * 2
 
     # ------ Handle Daily Raffle ------
     # 10% of the trunk treasury is paid out to raffle winners
@@ -267,6 +272,8 @@ for run in range(int(model_setup['run_days'])):
         "$trunk": em_data['trunk_busd_lp'].price,
         "$BNB": em_data['bnb'].usd_value,
         "$bertha_payouts/m": (daily_bertha_support_usd + futures_claimed) / 1E6,
+        "daily_trunk_yield": daily_available_yield,
+        "daily_futures_yield": futures_claimed,
         "$daily_yield/m": daily_yield_usd / 1E6,
         "$liquid_debt/m": usd_liquid_debt / 1E6,
         "liquid_debt/m": em_data['trunk_liquid_debt'] / 1E6,
@@ -287,7 +294,8 @@ for run in range(int(model_setup['run_days'])):
         "queue_wait": redeem_wait_days,
         "farmers_depot": em_data['farmers_depot'].balance,
         "futures_busd_pool": em_data['futures_busd_pool'],
-        "bonds": em_data['stampede_bonds'],
+        "bonds/m": em_data['stampede_bonds'] / 1E6,
+        "stampede_owed/m": em_data['stampede_owed'] / 1E6,
         "daily_ele_growth": ele_purchase_growth_pct,
         "daily_futures_growth": futures_growth_pct,
         "daily_total_growth": total_growth_pct
