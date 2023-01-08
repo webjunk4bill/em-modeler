@@ -66,11 +66,11 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['trunk_total_debt'] = em_data['trunk_liquid_debt'] + em_data['stampede'].owed
 
         to_pickle = em_data
-        f = open('chain_data/chainData_{0}.pkl'.format(date.today()), 'wb')
+        f = open('chain_data/emData_{0}.pkl'.format(date.today()), 'wb')
         pickle.dump(to_pickle, f)
         f.close()
     else:
-        f_o = open('chain_data/chainData_2023-01-08.pkl', 'rb')  # TODO: figure out how to update this automatically
+        f_o = open('chain_data/emData_2023-01-08.pkl', 'rb')  # TODO: figure out how to update this automatically
         em_data = pickle.load(f_o)
         f_o.close()
 
