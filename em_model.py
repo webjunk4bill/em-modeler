@@ -36,8 +36,7 @@ for run in range(int(model_setup['run_days'])):
 
     # Incoming Funds ---------------------------------------------------------------------
     # --- Peanuts ---
-    em_data['stampede_bonds'] += model_setup['buy_peanuts'][model_setup['day']] / \
-                                 max(em_data['trunk_busd_lp'].price, 0.25)
+    em_data['stampede'].bond(model_setup['buy_peanuts'][model_setup['day']] / max(em_data['trunk_busd_lp'].price, 0.25))
     em_data['busd_treasury'] += model_setup['buy_peanuts'][model_setup['day']]
     # --- Farmer's Depot ---
     depot_buy_usd = model_setup['buy_depot'][model_setup['day']]  # Don't want to directly modify the starting value
@@ -67,7 +66,7 @@ for run in range(int(model_setup['run_days'])):
     # TODO: Elephant Market Sell
 
     # Handle Governance ---------------------------------------------------------------------
-    # ------ ELephant Buyback (for Bertha) ------
+    # ------ Elephant Buyback (for Bertha) ------
     buyback_funds = em_data['busd_treasury'] * model_setup['elephant_buyback_apr']  # In USD
     em_data['busd_treasury'] -= buyback_funds  # Remove funds
     ele_bought = bsc.elephant_buy(buyback_funds, em_data['ele_busd_lp'], em_data['ele_bnb_lp'],
@@ -122,27 +121,14 @@ for run in range(int(model_setup['run_days'])):
         em_data['futures_busd_pool'] -= futures_claimed  # payout claims
 
     # Handle Yield and Sales/Redemptions (all in Trunk) ----------------------------------------------------------------
-    # ------ Calculate Available Trunk Yield ------ #
+    # ------ Calculate Daily Trunk Yield ------ #
+    action = model_setup['roll_claim'].pop()
+    stp_yield = em_data['stampede'].update(action, em_data['trunk_busd_lp'].price)
     stk_yield = em_data['staking_balance'] * em_data['staking_apr']  # In Trunk
     fm_yield = em_data['farm_tvl'] * em_data['farms_max_apr'] * em_data['trunk_busd_lp'].price
-    if em_data['stampede_owed'] > 0:  # Make sure Max Payout hasn't occurred yet
-        stp_yield = em_data['stampede_bonds'] * \
-                    (em_data['stampede_max_apr'] * em_data['trunk_busd_lp'].price)  # In Trunk
-    else:
-        stp_yield = 0
-    daily_available_yield = stk_yield + fm_yield + stp_yield
-
-    # ------ Stampede tracking and Remaining Yield ------
-    action = model_setup['roll_claim'].pop()
-    if action == 'roll':
-        em_data['stampede_bonds'] += stp_yield  # yield rolled back into stampede
-        em_data['stampede_owed'] += stp_yield * 2.05  # Rolling will increase the stampede payout owed
-        kept_yield = stk_yield + fm_yield
-    else:  # Claim Day
-        em_data['stampede_owed'] -= stp_yield  # Trunk paid out from Stampede, reducing debt
-        kept_yield = stk_yield + fm_yield + stp_yield
-    if em_data['trunk_treasury'] > 0 + kept_yield:  # Yield will be paid from Trunk treasury, or else minted
-        em_data['trunk_treasury'] -= kept_yield
+    daily_yield = stk_yield + fm_yield + stp_yield
+    if em_data['trunk_treasury'] > daily_yield:  # Yield will be paid from Trunk treasury, or else minted
+        em_data['trunk_treasury'] -= daily_yield
 
     # ------ Determine community Peg support and sales amount ------
     if model_setup['peg_trunk'] and em_data['trunk_busd_lp'].price < 1:
@@ -150,39 +136,39 @@ for run in range(int(model_setup['run_days'])):
     elif model_setup['peg_trunk']:  # Allow up to 10% drop in Trunk Price
         trunk_sales = (1 - 0.9 ** 0.5) * em_data['trunk_busd_lp'].token_bal['TRUNK']
     else:
-        trunk_sales = kept_yield * model_setup['yield_sales'] * em_data['trunk_busd_lp'].price
+        trunk_sales = daily_yield * model_setup['yield_sales'] * em_data['trunk_busd_lp'].price
+    if trunk_sales > daily_yield:
+        trunk_sales = daily_yield  # Never try to sell more than the actual yield
 
     # ------ Yield Redemption/Sales ------
     if redeem_wait_days <= 30:  # This can be adjusted, just guessing
         em_data['redemption_queue'] += trunk_sales
     else:
         em_data['trunk_busd_lp'].update_lp('TRUNK', trunk_sales)
-    kept_yield -= trunk_sales  # depending on whether this is positive or negative will determine sales vs hold
+    daily_yield -= trunk_sales  # depending on whether this is positive or negative will determine sales vs hold
 
-    # ------ Update balances based on kept yield ------
+    # ------ Update balances based on unsold yield ------
     # --- Buys off PCS - included here so that it can use the same deposit ratios defined
     # Once Peg is hit, this is the same as minting
     em_data['trunk_busd_lp'].update_lp('BUSD', model_setup['buy_trunk_pcs'][model_setup['day']])  # purchase trunk
-    kept_yield += em_data['trunk_busd_lp'].tokens_removed
+    daily_yield += em_data['trunk_busd_lp'].tokens_removed
     # --- Farmer's Depot ---
     em_data['farmers_depot'].pass_days(1)  # Update depot by 1 day
     depot_claim = em_data['farmers_depot'].claim()
-    kept_yield += depot_claim  # Claim available funds and deposit based on ratios
+    daily_yield += depot_claim  # Claim available funds and deposit based on ratios
     if em_data['trunk_treasury'] > depot_claim:
         em_data['trunk_treasury'] -= depot_claim  # Trunk will be paid from treasury vs minted
     # --- Update Balances ---
-    if kept_yield > 0:
-        em_data['staking_balance'] += kept_yield * model_setup['yield_to_stake']
-        em_data['trunk_held_wallets'] += kept_yield * model_setup['yield_to_hold']
+    if daily_yield > 0:
+        em_data['staking_balance'] += daily_yield * model_setup['yield_to_stake']
+        em_data['trunk_held_wallets'] += daily_yield * model_setup['yield_to_hold']
         # Farm TVL still goes up by total amount, assume bringing pair token
-        em_data['farm_tvl'] += kept_yield * model_setup['yield_to_farm']
+        em_data['farm_tvl'] += daily_yield * model_setup['yield_to_farm']
         em_data['trunk_liquid_debt'] = em_data['staking_balance'] + em_data['farm_tvl'] / 2 + \
                                        em_data['trunk_held_wallets']  # Update liquid debt
-        em_data['stampede_bonds'] += kept_yield * model_setup['yield_to_bond']
-        em_data['stampede_owed'] += kept_yield * model_setup['yield_to_bond'] * 2.05
+        em_data['stampede'].bond(daily_yield * model_setup['yield_to_bond'])
 
     # ------ Arbitrage Trunk LP with Redemption Pool or Minting ------
-    # TODO: This can be made a function or class
     # SQRT(CP) will give perfect split.
     delta = (em_data['trunk_busd_lp'].const_prod ** 0.5 - em_data['trunk_busd_lp'].token_bal['BUSD'])
     if em_data['trunk_busd_lp'].price <= 1.00 and redeem_wait_days < 25:  # No arbitrage until queue is reasonable.
@@ -197,7 +183,7 @@ for run in range(int(model_setup['run_days'])):
         pass
 
     # Handle Liquid Trunk Selling/Redeeming ---------------------------------------------------------------------
-    if model_setup['peg_trunk'] and em_data['trunk_busd_lp'].price > 0.9:  # Allow some selling
+    if model_setup['peg_trunk'] and em_data['trunk_busd_lp'].price > 0.99:  # Allow some selling
         trunk_to_sell = em_data['trunk_busd_lp'].token_bal['BUSD'] - (em_data['trunk_busd_lp'].const_prod * 0.9) ** 0.5
     elif model_setup['peg_trunk']:
         trunk_to_sell = 0
@@ -207,7 +193,9 @@ for run in range(int(model_setup['run_days'])):
         trunk_to_sell = 0
     # Split between Redeem and Sell
     # Need to ensure there is actually trunk left to sell
-    if em_data['trunk_held_wallets'] > 0 and em_data['staking_balance'] > 0 and em_data['farm_tvl'] > 2:
+    if em_data['trunk_held_wallets'] > trunk_to_sell / 2 and \
+            em_data['staking_balance'] > trunk_to_sell / 2 and \
+            em_data['farm_tvl'] > trunk_to_sell:
         if redeem_wait_days <= 30:  # Redemption Queue at one week time to payout
             em_data['redemption_queue'] += trunk_to_sell  # Redeem Trunk
         else:
@@ -219,11 +207,14 @@ for run in range(int(model_setup['run_days'])):
         em_data['staking_balance'] -= stake_ratio * trunk_to_sell
         farm_ratio = em_data['farm_tvl'] / 2 / em_data['trunk_liquid_debt']
         em_data['farm_tvl'] -= farm_ratio * trunk_to_sell * 2
+    else:
+        trunk_to_sell = 0
 
     # ------ Handle Daily Raffle ------
     # 10% of the trunk treasury is paid out to raffle winners
-    em_data['stampede_bonds'] += em_data['trunk_treasury'] * 0.1
-    em_data['trunk_treasury'] *= 0.9  # remove trunk from treasury paid to raffle winners
+    if em_data['trunk_treasury'] > 0:
+        em_data['stampede'].bond(em_data['trunk_treasury'] * 0.1)
+        em_data['trunk_treasury'] *= 0.9  # remove trunk from treasury paid to raffle winners
 
     # ------- Update assets and debts ----------
     average_ele_price = (em_data['ele_busd_lp'].price + (em_data['ele_bnb_lp'].price * em_data['bnb'].usd_value)) / 2
@@ -232,11 +223,11 @@ for run in range(int(model_setup['run_days'])):
                     'bnb'].usd_value \
                 + em_data['busd_treasury'] + em_data['trunk_treasury'] * em_data['trunk_busd_lp'].price
     em_income = em_assets - em_assets_day_start  # How much did the asset sheet grow
-    daily_yield_usd = daily_available_yield * em_data['trunk_busd_lp'].price + futures_claimed
+    daily_yield_usd = daily_yield * em_data['trunk_busd_lp'].price + futures_claimed
     em_liquidity = em_income - daily_yield_usd
     em_data['trunk_liquid_debt'] = em_data['trunk_held_wallets'] + em_data['farm_tvl'] / 2 + \
-                                   em_data['staking_balance']
-    trunk_total_debt = em_data['trunk_liquid_debt'] + em_data['stampede_owed']
+                                   em_data['staking_balance'] + em_data['stampede'].accumulated
+    trunk_total_debt = em_data['trunk_liquid_debt'] + em_data['stampede'].owed
     usd_liquid_debt = em_data['trunk_liquid_debt'] * em_data['trunk_busd_lp'].price
     usd_total_debt = trunk_total_debt * em_data['trunk_busd_lp'].price
     today = model_setup['day']
@@ -252,10 +243,10 @@ for run in range(int(model_setup['run_days'])):
                   model_setup['buy_peanuts'][today] + \
                   model_setup['buy_futures'][today]
     tomorrow_funds = model_setup['buy_w_b'][tomorrow] + \
-                  model_setup['buy_trunk_pcs'][tomorrow] + \
-                  model_setup['buy_depot'][tomorrow] + \
-                  model_setup['buy_peanuts'][tomorrow] + \
-                  model_setup['buy_futures'][tomorrow]
+                     model_setup['buy_trunk_pcs'][tomorrow] + \
+                     model_setup['buy_depot'][tomorrow] + \
+                     model_setup['buy_peanuts'][tomorrow] + \
+                     model_setup['buy_futures'][tomorrow]
     total_growth_pct = (tomorrow_funds / today_funds - 1) * 100
     ele_purchase_growth_pct = (model_setup['buy_w_b'][tomorrow] / model_setup['buy_w_b'][today] - 1) * 100
     futures_growth_pct = (model_setup['buy_futures'][tomorrow] / model_setup['buy_futures'][today] - 1) * 100
@@ -272,7 +263,7 @@ for run in range(int(model_setup['run_days'])):
         "$trunk": em_data['trunk_busd_lp'].price,
         "$BNB": em_data['bnb'].usd_value,
         "$bertha_payouts/m": (daily_bertha_support_usd + futures_claimed) / 1E6,
-        "daily_trunk_yield": daily_available_yield,
+        "daily_trunk_yield": daily_yield,
         "daily_futures_yield": futures_claimed,
         "$daily_yield/m": daily_yield_usd / 1E6,
         "$liquid_debt/m": usd_liquid_debt / 1E6,
@@ -294,8 +285,9 @@ for run in range(int(model_setup['run_days'])):
         "queue_wait": redeem_wait_days,
         "farmers_depot": em_data['farmers_depot'].balance,
         "futures_busd_pool": em_data['futures_busd_pool'],
-        "bonds/m": em_data['stampede_bonds'] / 1E6,
-        "stampede_owed/m": em_data['stampede_owed'] / 1E6,
+        "bonds/m": em_data['stampede'].bonds / 1E6,
+        "stampede_owed/m": em_data['stampede'].owed / 1E6,
+        "stampede_accumulating_yield/m": em_data['stampede'].accumulated / 1E6,
         "daily_ele_growth": ele_purchase_growth_pct,
         "daily_futures_growth": futures_growth_pct,
         "daily_total_growth": total_growth_pct
