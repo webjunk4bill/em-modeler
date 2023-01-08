@@ -35,7 +35,7 @@ def setup_run(daily_funds, run_quarters, bnb_price):
     model_setup['peg_trunk'] = True  # This will over-ride the amount of sales in order to keep Trunk near $1
     model_setup['yield_sales'] = 0.75  # % of daily available yield to sell (at PEG)
     # Maximum % of trunk held to be sold in a day only *if* the platform can support it.
-    model_setup['daily_liquid_trunk_sales'] = 0.01
+    model_setup['daily_liquid_trunk_sales'] = 0.005
 
     # Kept Yield Behavior (needs to add up to 100%) - takes place after the sales % in "yield_sales"
     # Set these values for a fully running system.  Will be modified based on Trunk price during recovery.
@@ -48,7 +48,7 @@ def setup_run(daily_funds, run_quarters, bnb_price):
         raise Exception("Yield behavior must add to 100%")
 
     # Setup Run
-    schedule = ['roll', 'claim']
+    schedule = ['roll', 'claim', 'hold', 'hold', 'hold']
     model_setup['run_days'] = run_quarters * 365 / 4
     cycles = round(model_setup['run_days'] / len(schedule)) + 1
     model_setup['roll_claim'] = []
