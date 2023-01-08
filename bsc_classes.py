@@ -204,4 +204,77 @@ class YieldEngine:
         self.daily_payout = self.deposit_base * self.rate
 
 
-# TODO: Create treasuries class to handle functions associated with BUSD, Bertha, Trunk treasuries
+class StampedeEngine:
+    """
+    EM Stampede Engine
+    Initializes with a starting deposit
+    Actions require trunk price to get the peg adjusted yield rate
+    self.accumulated will show how much is waiting to be claimed at a later date and can be claimed with "drain" command
+    accumulated divs should be added to total liquid debt
+    """
+    def __init__(self, deposit):
+        self.bonds = deposit
+        self.maturity = deposit * 2.05
+        self.available = 0
+        self.accumulated_days = 0
+        self.rate = 0.0056
+        self.total_claims = 0
+        self.claimed = 0
+        self._owed = None
+        self._accumulated = None
+        self.trunk_price = 1
+        
+    @property
+    def owed(self):
+        self._owed = self.maturity - self.total_claims
+        return self._owed
+
+    @property
+    def accumulated(self):
+        daily_yield = self.bonds * self.rate * self.trunk_price
+        self._accumulated = min(self.accumulated_days * daily_yield, self.owed)  # Can't accumulate more than owed
+        return self._accumulated
+
+    def update(self, action, trunk_price=1.0):
+        """
+        This function assumes that a day passes for every call to update
+        It returns the claimed amount of trunk if claimed
+        Draining will claim out the accumulated balance
+        """
+        self.trunk_price = trunk_price
+        self.claimed = 0
+        self.available = self.bonds * self.rate * trunk_price
+        if self.owed >= self.available:
+            if action == 'roll':
+                self.bonds += self.available
+                self.maturity += self.available * 2.05
+                self.total_claims += self.available
+                self.available = 0
+                self.claimed = 0
+            elif action == 'claim':
+                self.total_claims += self.available
+                self.claimed = self.available
+                self.available = 0
+            elif action == 'hold':  # this is where people let the divs accumulate
+                self.accumulated_days += 1
+                self.available = 0
+                self.claimed = 0
+            elif action == 'drain':
+                self.total_claims += self.accumulated
+                self.claimed = self.accumulated
+                self.available = 0
+                self.accumulated_days = 0
+            else:
+                raise Exception("Improper action passed to Stampede Engine")
+        else:
+            self.available = 0
+            pass
+
+        return self.claimed
+
+    def bond(self, deposit):
+        """
+        Bond Additional Funds
+        """
+        self.bonds += deposit
+        self.maturity += deposit * 2.05
