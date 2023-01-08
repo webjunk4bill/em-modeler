@@ -7,7 +7,7 @@ from datetime import date
 import pickle
 
 # Get LP and Token Info
-f_o = open('../chainData_2022-12-28.pkl', 'rb')
+f_o = open('chainData_2022-12-28.pkl', 'rb')
 from_pickle = pickle.load(f_o)
 f_o.close()
 
