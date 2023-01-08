@@ -42,13 +42,13 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['farms_max_apr'] = 1.25 / 365
         em_data['redemption_queue'] = 1.46E6
         em_data['trunk_supply'] = 30.329E6
-        em_data['staking_balance'] = 9.152E6
-        stampede_bonds = 55.73E6
-        stampede_payouts = 58.85E6
-        em_data['farm_tvl'] = 7.095E6  # Yield is paid out on TVL
+        em_data['staking_balance'] = 9.167E6
+        stampede_bonds = 55.79E6
+        stampede_payouts = 59.03E6
+        em_data['farm_tvl'] = 7.168E6  # Yield is paid out on TVL
         em_data['farm_balance'] = em_data['farm_tvl'] / 2  # This is the total trunk balance in the farms
-        farm_depot_tvl = 379109  # In Trunk, TODO: should be able to read this automatically
-        farm_depot_claimed = 659889  # In Trunk
+        farm_depot_tvl = 370961  # In Trunk, TODO: should be able to read this automatically
+        farm_depot_claimed = 668747  # In Trunk
         em_data['trunk_held_wallets'] = em_data['trunk_supply'] * 0.0355  # Estimate based off bscscan token holders:
         # https://bscscan.com/token/tokenholderchart/0xdd325C38b12903B727D16961e61333f4871A70E0
         em_data['trunk_liquid_debt'] = em_data['staking_balance'] + em_data['trunk_held_wallets'] + \
@@ -66,11 +66,11 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['trunk_total_debt'] = em_data['trunk_liquid_debt'] + em_data['stampede'].owed
 
         to_pickle = em_data
-        f = open('chainData_{0}.pkl'.format(date.today()), 'wb')
+        f = open('chain_data/chainData_{0}.pkl'.format(date.today()), 'wb')
         pickle.dump(to_pickle, f)
         f.close()
     else:
-        f_o = open('chainData_2023-01-07.pkl', 'rb')  # TODO: figure out how to update this automatically
+        f_o = open('chain_data/chainData_2023-01-08.pkl', 'rb')  # TODO: figure out how to update this automatically
         em_data = pickle.load(f_o)
         f_o.close()
 
