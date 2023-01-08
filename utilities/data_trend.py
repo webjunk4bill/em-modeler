@@ -12,10 +12,10 @@ import re
 
 def read_data():
     path = '../chain_data'
-    files = glob.glob(os.path.join(path, "*.pkl"))
+    files = sorted(glob.glob(os.path.join(path, "*.pkl")))
     historical_data = {}
     for f in files:
-        date = re.search(r"chainData_(.*)\.pkl", f).group(1)
+        date = re.search(r"emData_(.*)\.pkl", f).group(1)
         d = pd.Timestamp(date)
         f_o = open(f, 'rb')
         pick = pickle.load(f_o)
@@ -27,8 +27,9 @@ def read_data():
             'busd_lp_elephant': pick['ele_busd_lp'].token_bal['ELEPHANT'],
             'busd_lp_bnb': pick['ele_busd_lp'].token_bal['BUSD'],
             '$trunk': pick['start_trunk_price'],
-            'trunk_lb_trunk': pick['trunk_busd_lp'].token_bal['TRUNK'],
-            'trunk_lb_busd': pick['trunk_busd_lp'].token_bal['BUSD'],
+            'total_ele_lp': pick['ele_bnb_lp'].token_bal['ELEPHANT'] + pick['ele_busd_lp'].token_bal['ELEPHANT'],
+            'trunk_lp_trunk': pick['trunk_busd_lp'].token_bal['TRUNK'],
+            'trunk_lp_busd': pick['trunk_busd_lp'].token_bal['BUSD'],
             'bnb_price': pick['bnb'].usd_value,
             'bertha/T': pick['bertha'] / 1E12,
             'busd_treasury': pick['busd_treasury'],
@@ -42,7 +43,8 @@ def read_data():
             'futures_balance': pick['em_futures'].balance,
             'stampede_bonds/m': pick['stampede'].bonds / 1E6,
             'stampede_owed/m': pick['stampede'].owed / 1E6,
-            'trunk_liquid_debt/m': pick['trunk_liquid_debt'] / 1E6
+            'trunk_liquid_debt/m': pick['trunk_liquid_debt'] / 1E6,
+            'redemption_queue/m': pick['redemption_queue'] / 1E6
         }
 
     data_frame = pd.DataFrame(historical_data).T
@@ -60,6 +62,21 @@ def calc_delta(start, end):
     return abs_delta, ratio_pct
 
 
+def projections(data, time):
+    projection = {'daily_ele_lp_change': data['total_ele_lp']['absolute'] / time.days,
+                  'daily_trunk_change': data['trunk_lp_trunk']['absolute'] / time.days,
+                  'redemption_queue_change': data['redemption_queue/m']['absolute'] * 1E6 / time.days,
+                  '$daily_trunk_buys': data['trunk_lp_busd']['absolute'] / time.days,
+                  '$daily_depot_deposits': data['farmers_depot_deposits']['absolute'] / time.days,
+                  'daily_stampede_bonds': data['stampede_bonds/m']['absolute'] * 1E6 / time.days,
+                  '$daily_futures_deposits': data['futures_deposits']['absolute'] / time.days
+                  }
+
+    return projection
+
+
+# ----------------------------------------------------------------------
+
 df = read_data()
 df.to_csv('../chain_data/trend.csv')
 
@@ -67,8 +84,22 @@ recent = pd.DataFrame({'absolute': (calc_delta(df.iloc[-1], df.iloc[-2]))[0],
                        'percent': (calc_delta(df.iloc[-1], df.iloc[-2]))[1]})
 full = pd.DataFrame({'absolute': (calc_delta(df.iloc[-1], df.iloc[0]))[0],
                      'percent': (calc_delta(df.iloc[-1], df.iloc[0]))[1]})
+
 fname = "../chain_data/delta_{0}_{1}.csv".format(df.index[-2], df.index[-1])
 recent.to_csv(fname)
 fname = "../chain_data/delta_{0}_{1}.csv".format(df.index[0], df.index[-1])
 full.to_csv(fname)
+
+if df.index[-1] - df.index[0] < pd.Timedelta("2W"):
+    delta = full
+    time = df.index[-1] - df.index[0]
+else:
+    delta = recent
+    time = df.index[-1] - df.index[-2]
+
+output = pd.Series(projections(delta.T, time))
+output['$elephant/m'] = df.iloc[-1]['$elephant/m']
+output['ele_change_usd'] = -1 * output['$elephant/m'] / 1E6 * output['daily_ele_lp_change']
+output.to_csv('../chain_data/projections.csv')
+
 print("Done")
