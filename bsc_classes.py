@@ -232,7 +232,7 @@ class StampedeEngine:
     @property
     def accumulated(self):
         daily_yield = self.bonds * self.rate * self.trunk_price
-        self._accumulated = self.accumulated_days * daily_yield
+        self._accumulated = min(self.accumulated_days * daily_yield, self.owed)  # Can't accumulate more than owed
         return self._accumulated
 
     def update(self, action, trunk_price=1.0):

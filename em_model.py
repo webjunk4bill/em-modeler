@@ -12,7 +12,7 @@ em_data = get_em_data(read_blockchain=False)  # False = pull from pickle vs quer
 
 # Run Model Setup (starting funds, run quarters, current BNB price)
 # Edit parameters in setup_run.py to adjust model parameters
-model_setup = setup_run(50000, 10, em_data['bnb'].usd_value)
+model_setup = setup_run(50000, 12, em_data['bnb'].usd_value)
 # initialize variables
 redemptions_paid = 0
 running_income_funds = 0
@@ -127,6 +127,7 @@ for run in range(int(model_setup['run_days'])):
     stk_yield = em_data['staking_balance'] * em_data['staking_apr']  # In Trunk
     fm_yield = em_data['farm_tvl'] * em_data['farms_max_apr'] * em_data['trunk_busd_lp'].price
     daily_yield = stk_yield + fm_yield + stp_yield
+    presale_daily_yield = daily_yield
     if em_data['trunk_treasury'] > daily_yield:  # Yield will be paid from Trunk treasury, or else minted
         em_data['trunk_treasury'] -= daily_yield
 
@@ -141,7 +142,7 @@ for run in range(int(model_setup['run_days'])):
         trunk_sales = daily_yield  # Never try to sell more than the actual yield
 
     # ------ Yield Redemption/Sales ------
-    if redeem_wait_days <= 30:  # This can be adjusted, just guessing
+    if redeem_wait_days <= 30 and em_data['trunk_busd_lp'].price < 0.90:  # This can be adjusted, just guessing
         em_data['redemption_queue'] += trunk_sales
     else:
         em_data['trunk_busd_lp'].update_lp('TRUNK', trunk_sales)
@@ -172,7 +173,7 @@ for run in range(int(model_setup['run_days'])):
     # SQRT(CP) will give perfect split.
     delta = (em_data['trunk_busd_lp'].const_prod ** 0.5 - em_data['trunk_busd_lp'].token_bal['BUSD'])
     if em_data['trunk_busd_lp'].price <= 1.00 and redeem_wait_days < 25:  # No arbitrage until queue is reasonable.
-        em_data['trunk_busd_lp'].update_lp('BUSD', delta * 0.1)  # Arbitrage 10% per day
+        em_data['trunk_busd_lp'].update_lp('BUSD', delta)
         em_data['redemption_queue'] += delta * 0.1
     elif em_data['trunk_busd_lp'].price > 1.00:  # Trunk is over $1.  "Delta" will be negative
         em_data['trunk_busd_lp'].update_lp('TRUNK', abs(delta))  # Sell trunk on PCS
@@ -223,7 +224,7 @@ for run in range(int(model_setup['run_days'])):
                     'bnb'].usd_value \
                 + em_data['busd_treasury'] + em_data['trunk_treasury'] * em_data['trunk_busd_lp'].price
     em_income = em_assets - em_assets_day_start  # How much did the asset sheet grow
-    daily_yield_usd = daily_yield * em_data['trunk_busd_lp'].price + futures_claimed
+    daily_yield_usd = presale_daily_yield * em_data['trunk_busd_lp'].price + futures_claimed
     em_liquidity = em_income - daily_yield_usd
     em_data['trunk_liquid_debt'] = em_data['trunk_held_wallets'] + em_data['farm_tvl'] / 2 + \
                                    em_data['staking_balance'] + em_data['stampede'].accumulated

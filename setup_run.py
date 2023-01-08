@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import date
 
 
-def setup_run(daily_funds, run_quarters, bnb_price):
+def setup_run(daily_funds, run_months, bnb_price):
     """
     Function returns a dictionary, model_setup, which contains all the parameters needed to execute the simulation run
     """
@@ -32,7 +32,7 @@ def setup_run(daily_funds, run_quarters, bnb_price):
     model_setup['sell_w_b'] = 0.1  # Percentage of BwB volume
     # ele_market_buy = 0
     # ele_market_sell = 0
-    model_setup['peg_trunk'] = True  # This will over-ride the amount of sales in order to keep Trunk near $1
+    model_setup['peg_trunk'] = False  # This will over-ride the amount of sales in order to keep Trunk near $1
     model_setup['yield_sales'] = 0.75  # % of daily available yield to sell (at PEG)
     # Maximum % of trunk held to be sold in a day only *if* the platform can support it.
     model_setup['daily_liquid_trunk_sales'] = 0.005
@@ -48,8 +48,8 @@ def setup_run(daily_funds, run_quarters, bnb_price):
         raise Exception("Yield behavior must add to 100%")
 
     # Setup Run
-    schedule = ['roll', 'claim', 'hold', 'hold', 'hold']
-    model_setup['run_days'] = run_quarters * 365 / 4
+    schedule = ['roll', 'claim', 'hold', 'hold']
+    model_setup['run_days'] = run_months * 365 / 12
     cycles = round(model_setup['run_days'] / len(schedule)) + 1
     model_setup['roll_claim'] = []
     i = 1
@@ -61,36 +61,34 @@ def setup_run(daily_funds, run_quarters, bnb_price):
     model_setup['day'] = pd.to_datetime(date.today())
 
     # ------ Set up Growth ------
-    start = date(2023, 1, 1)  # Use the previous quarter start
-    periods = run_quarters + 2  # we are starting one quarter back from today's date and want to go an extra quarter
-    sparse_range = pd.date_range(start, periods=periods, freq="QS")
+    start = date(2023, 1, 1)  # Use the previous month start
+    periods = run_months + 2  # we are starting one month back from today's date and want to go an extra month
+    sparse_range = pd.date_range(start, periods=periods, freq="MS")
     full_range = pd.date_range(start, sparse_range.date[-1])
     # --- BNB Growth ---
-    # Look for a bull run in 2024.  Start the first two values with the current price
-    # bnb_price_movement = [bnb.usd_value, bnb.usd_value, 275, 300, 325, 350, 375, 400, 500, 600,
-    #                      650, 700, 725, 750, 650, 625, 700, 750, 800, 800, 750, 800]
-    bnb_price_movement = [bnb_price, bnb_price, 275, 300, 325, 375, 450, 550, 650, 600, 650, 700]
-    # bnb_price_movement = [250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250]
+    # bnb_price_movement = [bnb_price, bnb_price, 275, 300, 325, 375, 450, 550, 650, 600, 650, 700]
+    bnb_price_movement = [bnb_price, bnb_price, 250, 275, 250, 275, 250, 275, 300, 275, 300, 275, 300, 300]
     if sparse_range.size != bnb_price_movement.__len__():
         raise Exception("BNB Price range does not match date range")
     temp_bnb_s = pd.Series(bnb_price_movement, index=sparse_range)
     model_setup['bnb_price_s'] = pd.Series(temp_bnb_s, index=full_range).interpolate()  # get a daily price increase
 
     # --- EM Growth ---
-    # ---  Quarters: ['23 Jan, Apr, Jul, Oct, '24 Jan, Apr, July, Oct, '25 Jan, Apr, July, Oct]
     # BwB
     # bwb_daily_rate = 0.0055
     # ele_buy_multiplier = []
     # days = (periods - 1) * 365 / 4 + 2  # Not sure why this is coming off by a could days...
     # for i in range(int(days)):
     #    ele_buy_multiplier.append((1 + bwb_daily_rate) ** i)
-    ele_buy_multiplier = [1, 3, 9, 23, 46, 75, 95, 160, 160, 160, 180, 200]
+    # ele_buy_multiplier = [1, 3, 9, 23, 46, 75, 95, 160, 160, 160, 180, 200]
+    # ele_buy_multiplier = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    ele_buy_multiplier = [1, 4, 2, 1, 1, 1, 0.1, 0.1, 0.5, 0.1, 0.1, 0.1, 0.1, 0.1]
     temp_ele_s = pd.Series(ele_buy_multiplier, index=sparse_range)
     temp_ele_full = pd.Series(temp_ele_s, index=full_range).interpolate()
     model_setup['buy_w_b'] = np.multiply(temp_ele_full, buy_w_b * daily_funds)  # This in $USD
     # Other Income
-    # Futures requires around 1.5x growth per quarter to pay for itself
-    income_multiplier = [1, 1.5, 2.5, 4, 6, 9, 14, 14, 14, 14, 14, 14]
+    # Futures requires around 14.5% income growth per month to pay for itself
+    income_multiplier = [5, 0.1, 0.3, 0.5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
     temp_income_s = pd.Series(income_multiplier, index=sparse_range)
     temp_income_full = pd.Series(temp_income_s, index=full_range).interpolate()
     model_setup['buy_trunk_pcs'] = np.multiply(temp_income_full, buy_trunk_pcs * daily_funds)
