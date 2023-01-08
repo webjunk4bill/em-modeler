@@ -78,8 +78,8 @@ def em_plot_time(em_df):
     fig2.savefig('outputs/fig2_{0}.png'.format(dt.datetime.today()))
 
     fig3, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=3)
-    em_df['bonds/m'].plot(ax=axes[1, 2], ylabel='Bonds', title='Stampede Bonds',
-                          sharex=False, sharey=False, grid=True)
+    em_df['stampede_accumulating_yield/m'].plot(ax=axes[1, 2], ylabel='Trunk', title='Accumulating Yield',
+                                                sharex=False, sharey=False, grid=True)
     em_df['stampede_owed/m'].plot(ax=axes[0, 1], ylabel='Trunk (millions)', title='Stampede Remaining Obligations',
                                   sharex=False, sharey=False, grid=True)
     em_df['staking_balance/m'].plot(ax=axes[1, 0], ylabel='Trunk (millions)', title='Staking Balance', grid=True)
