@@ -25,11 +25,13 @@ def read_data():
             'bnb_lp_elephant': pick['ele_bnb_lp'].token_bal['ELEPHANT'],
             'bnb_lp_bnb': pick['ele_bnb_lp'].token_bal['WBNB'],
             'busd_lp_elephant': pick['ele_busd_lp'].token_bal['ELEPHANT'],
-            'busd_lp_bnb': pick['ele_busd_lp'].token_bal['BUSD'],
+            'busd_lp_busd': pick['ele_busd_lp'].token_bal['BUSD'],
             '$trunk': pick['start_trunk_price'],
-            'total_ele_lp': pick['ele_bnb_lp'].token_bal['ELEPHANT'] + pick['ele_busd_lp'].token_bal['ELEPHANT'],
+            'total_ele_in_lps': pick['ele_bnb_lp'].token_bal['ELEPHANT'] + pick['ele_busd_lp'].token_bal['ELEPHANT'],
             'trunk_lp_trunk': pick['trunk_busd_lp'].token_bal['TRUNK'],
             'trunk_lp_busd': pick['trunk_busd_lp'].token_bal['BUSD'],
+            'trunk_lp_busd_to_balance': pick['trunk_busd_lp'].const_prod ** 0.5 -
+                                        pick['trunk_busd_lp'].token_bal['BUSD'],
             'bnb_price': pick['bnb'].usd_value,
             'bertha/T': pick['bertha'] / 1E12,
             'busd_treasury': pick['busd_treasury'],
@@ -63,7 +65,7 @@ def calc_delta(start, end):
 
 
 def projections(data, time):
-    projection = {'daily_ele_lp_change': data['total_ele_lp']['absolute'] / time.days,
+    projection = {'daily_ele_lp_change': data['total_ele_in_lps']['absolute'] / time.days,
                   'daily_trunk_change': data['trunk_lp_trunk']['absolute'] / time.days,
                   'redemption_queue_change': data['redemption_queue/m']['absolute'] * 1E6 / time.days,
                   '$daily_trunk_buys': data['trunk_lp_busd']['absolute'] / time.days,
