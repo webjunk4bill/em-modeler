@@ -80,7 +80,7 @@ def projections(data, time):
 # ----------------------------------------------------------------------
 
 df = read_data()
-df.to_csv('../chain_data/trend.csv')
+df.to_csv('../chain_data/trend.csv', float_format="%.3f")
 
 recent = pd.DataFrame({'absolute': (calc_delta(df.iloc[-1], df.iloc[-2]))[0],
                        'percent': (calc_delta(df.iloc[-1], df.iloc[-2]))[1]})
@@ -88,9 +88,9 @@ full = pd.DataFrame({'absolute': (calc_delta(df.iloc[-1], df.iloc[0]))[0],
                      'percent': (calc_delta(df.iloc[-1], df.iloc[0]))[1]})
 
 fname = "../chain_data/delta_{0}_{1}.csv".format(df.index[-2], df.index[-1])
-recent.to_csv(fname)
+recent.to_csv(fname, float_format="%.4f")
 fname = "../chain_data/delta_{0}_{1}.csv".format(df.index[0], df.index[-1])
-full.to_csv(fname)
+full.to_csv(fname, float_format="%.4f")
 
 if df.index[-1] - df.index[0] < pd.Timedelta("2W"):
     delta = full
@@ -102,6 +102,6 @@ else:
 output = pd.Series(projections(delta.T, time))
 output['$elephant/m'] = df.iloc[-1]['$elephant/m']
 output['ele_change_usd'] = -1 * output['$elephant/m'] / 1E6 * output['daily_ele_lp_change']
-output.to_csv('../chain_data/projections.csv')
+output.to_csv('../chain_data/projections.csv', float_format="%.3f")
 
 print("Done")
