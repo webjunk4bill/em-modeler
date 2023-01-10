@@ -43,10 +43,10 @@ def read_data():
             'farmers_depot_balance': pick['farmers_depot'].balance,
             'futures_deposits': pick['em_futures'].deposits,
             'futures_balance': pick['em_futures'].balance,
-            'stampede_bonds/m': pick['stampede'].bonds / 1E6,
-            'stampede_owed/m': pick['stampede'].owed / 1E6,
-            'trunk_liquid_debt/m': pick['trunk_liquid_debt'] / 1E6,
-            'redemption_queue/m': pick['redemption_queue'] / 1E6
+            'stampede_bonds': pick['stampede'].bonds,
+            'stampede_owed': pick['stampede'].owed,
+            'trunk_liquid_debt': pick['trunk_liquid_debt'],
+            'redemption_queue': pick['redemption_queue']
         }
 
     data_frame = pd.DataFrame(historical_data).T
@@ -67,10 +67,11 @@ def calc_delta(start, end):
 def projections(data, time):
     projection = {'daily_ele_lp_change': data['total_ele_in_lps']['absolute'] / time.days,
                   'daily_trunk_change': data['trunk_lp_trunk']['absolute'] / time.days,
-                  'redemption_queue_change': data['redemption_queue/m']['absolute'] * 1E6 / time.days,
+                  'daily_bnb_change': data['bnb_price']['absolute'] / time.days,
+                  'redemption_queue_change': data['redemption_queue']['absolute'] * 1E6 / time.days,
                   '$daily_trunk_buys': data['trunk_lp_busd']['absolute'] / time.days,
                   '$daily_depot_deposits': data['farmers_depot_deposits']['absolute'] / time.days,
-                  'daily_stampede_bonds': data['stampede_bonds/m']['absolute'] * 1E6 / time.days,
+                  'daily_stampede_bonds': data['stampede_bonds']['absolute'] * 1E6 / time.days,
                   '$daily_futures_deposits': data['futures_deposits']['absolute'] / time.days
                   }
 
@@ -88,9 +89,9 @@ full = pd.DataFrame({'absolute': (calc_delta(df.iloc[-1], df.iloc[0]))[0],
                      'percent': (calc_delta(df.iloc[-1], df.iloc[0]))[1]})
 
 fname = "../chain_data/delta_{0}_{1}.csv".format(df.index[-2], df.index[-1])
-recent.to_csv(fname, float_format="%.4f")
+recent.to_csv(fname, float_format="%.2f")
 fname = "../chain_data/delta_{0}_{1}.csv".format(df.index[0], df.index[-1])
-full.to_csv(fname, float_format="%.4f")
+full.to_csv(fname, float_format="%.2f")
 
 if df.index[-1] - df.index[0] < pd.Timedelta("2W"):
     delta = full
