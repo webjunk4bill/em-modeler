@@ -287,9 +287,9 @@ class BUSDFuturesEngine:
         This represents the new engine for BUSD Futures
         Deposit in $.  Day Rate in %/day.  Max Payout as a multiplier of the deposit.
         """
-        self.deposit = deposit
+        self.total_deposits = deposit
         self.multiplier = multiplier
-        self.balance = self.deposit * self.multiplier
+        self.balance = self.total_deposits * self.multiplier
         self.rate = day_rate
         self.available = 0
         self.claimed = 0
@@ -320,6 +320,6 @@ class BUSDFuturesEngine:
         """
         Perform a new deposit
         """
-        self.deposit += deposit
+        self.total_deposits += deposit
         self.balance += deposit * self.multiplier
         self.daily_payout = self.balance * self.rate
