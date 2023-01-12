@@ -212,6 +212,7 @@ class StampedeEngine:
     self.accumulated will show how much is waiting to be claimed at a later date and can be claimed with "drain" command
     accumulated divs should be added to total liquid debt
     """
+
     def __init__(self, deposit):
         self.bonds = deposit
         self.maturity = deposit * 2.05
@@ -223,7 +224,7 @@ class StampedeEngine:
         self._owed = None
         self._accumulated = None
         self.trunk_price = 1
-        
+
     @property
     def owed(self):
         self._owed = self.maturity - self.total_claims
@@ -278,3 +279,47 @@ class StampedeEngine:
         """
         self.bonds += deposit
         self.maturity += deposit * 2.05
+
+
+class BUSDFuturesEngine:
+    def __init__(self, deposit, day_rate=0.005, multiplier=2):
+        """
+        This represents the new engine for BUSD Futures
+        Deposit in $.  Day Rate in %/day.  Max Payout as a multiplier of the deposit.
+        """
+        self.deposit = deposit
+        self.multiplier = multiplier
+        self.balance = self.deposit * self.multiplier
+        self.rate = day_rate
+        self.available = 0
+        self.claimed = 0
+        self.daily_payout = self.balance * self.rate
+        self.days_since_claim = 0
+
+    def pass_days(self, days):
+        """
+        Update the available balances based on number of days passed
+        """
+        self.days_since_claim += days
+        self.available = self.daily_payout * self.days_since_claim
+
+    def claim(self):
+        """
+        Perform a claim of the available balance
+        """
+        claimed = self.available
+        self.claimed += claimed
+        self.balance -= claimed
+        self.daily_payout = self.balance * self.rate
+        self.available = 0
+        self.days_since_claim = 0
+
+        return claimed
+
+    def deposit(self, deposit):
+        """
+        Perform a new deposit
+        """
+        self.deposit += deposit
+        self.balance += deposit * self.multiplier
+        self.daily_payout = self.balance * self.rate
