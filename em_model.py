@@ -21,7 +21,7 @@ model_output = {}
 # Create and Run Model
 for run in range(int(model_setup['run_days'])):
     # Daily Bertha Support ---------------------------------------------------------------------
-    average_ele_price = (em_data['ele_busd_lp'].price + (em_data['ele_bnb_lp'].price * em_data['bnb'].usd_value)) / 2
+    average_ele_price = bsc.get_ave_ele(em_data['ele_busd_lp'], em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
     daily_bertha_support_usd = em_data['bertha'] * average_ele_price * \
                                (model_setup['redemption_support_apr'] + model_setup['trunk_support_apr'])
     em_assets_day_start = em_data['bertha'] * average_ele_price + em_data['trunk_busd_lp'].token_bal['BUSD'] + \
@@ -218,7 +218,7 @@ for run in range(int(model_setup['run_days'])):
         em_data['trunk_treasury'] *= 0.9  # remove trunk from treasury paid to raffle winners
 
     # ------- Update assets and debts ----------
-    average_ele_price = (em_data['ele_busd_lp'].price + (em_data['ele_bnb_lp'].price * em_data['bnb'].usd_value)) / 2
+    average_ele_price = bsc.get_ave_ele(em_data['ele_busd_lp'], em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
     em_assets = em_data['bertha'] * average_ele_price + em_data['trunk_busd_lp'].token_bal['BUSD'] \
                 + em_data['ele_busd_lp'].token_bal['BUSD'] + em_data['ele_bnb_lp'].token_bal['WBNB'] * em_data[
                     'bnb'].usd_value \

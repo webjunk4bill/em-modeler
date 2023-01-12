@@ -158,6 +158,17 @@ def elephant_sell(funds, busd_lp, bnb_lp, bnb_price):
     return tok_removed
 
 
+def get_ave_ele(busd_lp, bnb_lp, bnb_price):
+    """This function determines the weighted average USD price of Elephant based on the two LPs"""
+    busd_ele = busd_lp.token_bal['ELEPHANT']
+    bnb_ele = bnb_lp.token_bal['ELEPHANT']
+    busd_weight = busd_ele / (busd_ele + bnb_ele)
+    bnb_weight = bnb_ele / (busd_ele + bnb_ele)
+    ave_price = busd_lp.price * busd_weight + bnb_lp.price * bnb_price * bnb_weight
+
+    return ave_price
+
+
 class YieldEngine:
     def __init__(self, deposit, day_rate, max_payout):
         """

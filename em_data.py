@@ -30,7 +30,7 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['redemption_pool'] = bsc.GetWalletBalance(addr_contracts.redemption_pool, addr_tokens.BUSD).balance
         em_data['graveyard'] = bsc.GetWalletBalance(addr_contracts.em_graveyard, addr_tokens.Elephant).balance
         # Calculate and set starting values
-        ave_ele_price = (em_data['ele_bnb_lp'].price * em_data['bnb'].usd_value + em_data['ele_busd_lp'].price) / 2
+        ave_ele_price = bsc.get_ave_ele(em_data['ele_busd_lp'], em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
         em_data['start_ele_price'] = ave_ele_price
         em_data['start_trunk_price'] = em_data['trunk_busd_lp'].price
         em_data['start_bnb_price'] = em_data['bnb'].usd_value
