@@ -41,14 +41,14 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['staking_apr'] = 0.3 / 365
         em_data['farms_max_apr'] = 1.25 / 365
         em_data['redemption_queue'] = 1.45E6
-        em_data['trunk_supply'] = 30.479E6
-        em_data['staking_balance'] = 9.195E6
-        stampede_bonds = 55.83E6
-        stampede_payouts = 59.14E6
-        em_data['farm_tvl'] = 7.228E6  # Yield is paid out on TVL
+        em_data['trunk_supply'] = 30.571E6
+        em_data['staking_balance'] = 9.1175E6
+        stampede_bonds = 55.90E6
+        stampede_payouts = 59.34E6
+        em_data['farm_tvl'] = 7.282E6  # Yield is paid out on TVL
         em_data['farm_balance'] = em_data['farm_tvl'] / 2  # This is the total trunk balance in the farms
-        farm_depot_tvl = 313481  # In Trunk, TODO: should be able to read this automatically
-        farm_depot_claimed = 727093  # In Trunk
+        farm_depot_tvl = 287717  # In Trunk, TODO: should be able to read this automatically
+        farm_depot_claimed = 754304  # In Trunk
         em_data['trunk_held_wallets'] = em_data['trunk_supply'] * 0.0355  # Estimate based off bscscan token holders:
         # https://bscscan.com/token/tokenholderchart/0xdd325C38b12903B727D16961e61333f4871A70E0
         em_data['trunk_liquid_debt'] = em_data['staking_balance'] + em_data['trunk_held_wallets'] + \
@@ -58,7 +58,7 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['farmers_depot'] = bsc.YieldEngine(farm_depot_tvl + farm_depot_claimed, 1 / 30, 1)  # Farmer's Depot
         em_data['farmers_depot'].balance = farm_depot_tvl
         em_data['farmers_depot'].claimed = farm_depot_claimed  # need to do a manual update of what has happened to date
-        em_data['em_futures'] = bsc.YieldEngine(0, 0.01, 2)  # Create futures engine
+        em_data['em_futures'] = bsc.BUSDFuturesEngine(0)  # Create futures engine
         em_data['stampede'] = bsc.StampedeEngine(stampede_bonds)  # Create stampede engine
         em_data['stampede'].total_claims = stampede_payouts  # Update initial values
 
@@ -70,7 +70,7 @@ def get_em_data(*, read_blockchain: bool = False):
         pickle.dump(to_pickle, f)
         f.close()
     else:
-        f_o = open('chain_data/emData_2023-01-08.pkl', 'rb')  # TODO: figure out how to update this automatically
+        f_o = open('chain_data/emData_2023-01-11.pkl', 'rb')  # TODO: figure out how to update this automatically
         em_data = pickle.load(f_o)
         f_o.close()
 
