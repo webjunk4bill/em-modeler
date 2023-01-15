@@ -89,9 +89,9 @@ full = pd.DataFrame({'absolute': (calc_delta(df.iloc[-1], df.iloc[0]))[0],
                      'percent': (calc_delta(df.iloc[-1], df.iloc[0]))[1]})
 
 fname = "../chain_data/delta_{0}_{1}.csv".format(df.index[-2], df.index[-1])
-recent.to_csv(fname, float_format="%.2f")
+recent.to_csv(fname, float_format="%.3f")
 fname = "../chain_data/delta_{0}_{1}.csv".format(df.index[0], df.index[-1])
-full.to_csv(fname, float_format="%.2f")
+full.to_csv(fname, float_format="%.3f")
 
 if df.index[-1] - df.index[0] < pd.Timedelta("2W"):
     delta = full
