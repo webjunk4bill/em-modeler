@@ -293,18 +293,24 @@ class StampedeEngine:
 
 
 class BUSDFuturesEngine:
-    def __init__(self, deposit, day_rate=0.005, multiplier=2):
+    def __init__(self, deposit, day_rate=0.005):
         """
         This represents the new engine for BUSD Futures
         Deposit in $.  Day Rate in %/day.  Max Payout as a multiplier of the deposit.
         """
         self.deposits = deposit
-        self.multiplier = multiplier
-        self.balance = self.deposits * self.multiplier
+        self.balance = self.deposits
+        self.compounds = 0
         self.rate = day_rate
+        self.start_rate = day_rate
+        self.max_payout = 2500000
+        self.max_balance = 1000000
+        self.max_available = 100000
         self.available = 0
         self.claimed = 0
-        self.daily_payout = self.balance * self.rate
+        # self.claimed_pretax = 0
+        self.taxes_paid = 0
+        self.daily_payout = deposit * day_rate
         self.days_since_claim = 0
 
     def pass_days(self, days):
@@ -312,16 +318,21 @@ class BUSDFuturesEngine:
         Update the available balances based on number of days passed
         """
         self.days_since_claim += days
-        self.available = self.daily_payout * self.days_since_claim
+        if self.available > self.max_available:
+            pass  # No updates once any of the maximums are reached
+        else:
+            self.available = self.daily_payout * self.days_since_claim
 
     def claim(self):
         """
         Perform a claim of the available balance
         """
         claimed = self.available
-        self.claimed += claimed
-        self.balance -= claimed
-        self.daily_payout = self.balance * self.rate
+        self.claimed += claimed  # Update balances prior to paying tax
+        if self.balance >= claimed:
+            self.balance -= claimed
+        else:
+            self.balance = 0
         self.available = 0
         self.days_since_claim = 0
 
@@ -331,6 +342,28 @@ class BUSDFuturesEngine:
         """
         Perform a new deposit
         """
-        self.deposits += deposit
-        self.balance += deposit * self.multiplier
+        if self.balance > self.max_balance:
+            pass
+        else:
+            self.compounds += self.available  # Track how much has been compounded
+            self.balance += deposit + self.available
+            self.available = 0
+            self.days_since_claim = 0
+            self.deposits += deposit
+            self.update_rate()
+
+    def update_rate(self):
+        """Determines the interest rate based on compounded balance and updates the daily payout"""
+        if self.compounds < 50000:
+            self.rate = self.start_rate
+        elif 50000 <= self.compounds < 249999:
+            self.rate = self.start_rate * 0.9
+        elif 250000 <= self.compounds < 499999:
+            self.rate = self.start_rate * 0.85
+        elif 500000 <= self.compounds < 749999:
+            self.rate = self.start_rate * 0.75
+        elif 750000 <= self.compounds < 999999:
+            self.rate = self.start_rate * 0.65
+        elif self.compounds >= 1000000:
+            self.rate = self.start_rate * 0.5
         self.daily_payout = self.balance * self.rate
