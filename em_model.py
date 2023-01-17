@@ -122,7 +122,7 @@ for run in range(int(model_setup['run_days'])):
 
     # Handle Yield and Sales/Redemptions (all in Trunk) ----------------------------------------------------------------
     # ------ Calculate Daily Trunk Yield ------ #
-    action = model_setup['roll_claim'].pop()
+    action = model_setup['roll_claim'].pop(0)
     stp_yield = em_data['stampede'].update(action, em_data['trunk_busd_lp'].price)
     stk_yield = em_data['staking_balance'] * em_data['staking_apr']  # In Trunk
     fm_yield = em_data['farm_tvl'] * em_data['farms_max_apr'] * em_data['trunk_busd_lp'].price
