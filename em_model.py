@@ -14,6 +14,7 @@ em_data = get_em_data(read_blockchain=False)  # False = pull from pickle vs quer
 # Edit parameters in setup_run.py to adjust model parameters
 model_setup = setup_run(50000, 12, em_data['bnb'].usd_value)
 # initialize variables
+futures = {}
 redemptions_paid = 0
 running_income_funds = 0
 model_output = {}
@@ -47,7 +48,8 @@ for run in range(int(model_setup['run_days'])):
     em_data['farmers_depot'].deposit(depot_buy)
     em_data['busd_treasury'] += depot_buy_usd  # funds go to busd treasury
     # --- Futures ---
-    em_data['em_futures'].deposit(model_setup['buy_futures'][model_setup['day']])  # Deposit Futures funds
+    # Create a new futures stake with the daily deposit money
+    futures[model_setup['day']] = bsc.BUSDFuturesEngine(model_setup['buy_futures'][model_setup['day']])
     em_data['futures_busd_pool'] += model_setup['buy_futures'][model_setup['day']] * 0.1  # 10% hold for payouts
     em_data['busd_treasury'] += model_setup['buy_futures'][model_setup['day']] * 0.9  # remainder to busd treasury
 
@@ -109,8 +111,17 @@ for run in range(int(model_setup['run_days'])):
         pass  # support pool just grows if Trunk is already at Peg
 
     # ------ Futures Payouts ------
-    em_data['em_futures'].pass_days(1)  # payout for 1 day
-    futures_claimed = em_data['em_futures'].claim()  # Claim Out Funds
+    futures_claimed = 0
+    action = ''
+    for stake in futures.values():  # Need to process each separate futures stake
+        stake.pass_days(1)
+        if stake.days_since_action == model_setup['futures_interval']:
+            index = int(stake.total_days / model_setup['futures_interval'])
+            action = model_setup['futures_action'][index]
+            if action == 'dep':
+                stake.deposit(model_setup['futures_compound_dep'])  # deposit the money to compound stake
+            elif action == 'claim':
+                futures_claimed += stake.claim()
     if em_data['futures_busd_pool'] >= futures_claimed:
         em_data['futures_busd_pool'] -= futures_claimed  # payout claims
     else:  # Sell Elephant to replenish pool.  Sell a 10% Buffer

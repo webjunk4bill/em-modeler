@@ -311,17 +311,19 @@ class BUSDFuturesEngine:
         # self.claimed_pretax = 0
         self.taxes_paid = 0
         self.daily_payout = deposit * day_rate
-        self.days_since_claim = 0
+        self.days_since_action = 0
+        self.total_days = 0
 
     def pass_days(self, days):
         """
         Update the available balances based on number of days passed
         """
-        self.days_since_claim += days
+        self.days_since_action += days
+        self.total_days += days
         if self.available > self.max_available:
             pass  # No updates once any of the maximums are reached
         else:
-            self.available = self.daily_payout * self.days_since_claim
+            self.available = self.daily_payout * self.days_since_action
 
     def claim(self):
         """
@@ -334,7 +336,7 @@ class BUSDFuturesEngine:
         else:
             self.balance = 0
         self.available = 0
-        self.days_since_claim = 0
+        self.days_since_action = 0
 
         return claimed
 
@@ -348,7 +350,7 @@ class BUSDFuturesEngine:
             self.compounds += self.available  # Track how much has been compounded
             self.balance += deposit + self.available
             self.available = 0
-            self.days_since_claim = 0
+            self.days_since_action = 0
             self.deposits += deposit
             self.update_rate()
 

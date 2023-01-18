@@ -47,7 +47,7 @@ def setup_run(daily_funds, run_months, bnb_price):
             model_setup['yield_to_farm'] + model_setup['yield_to_bond'] != 1:
         raise Exception("Yield behavior must add to 100%")
 
-    # Setup Run
+    # Setup Stampede
     schedule = ['roll', 'claim', 'hold', 'hold']
     model_setup['run_days'] = run_months * 365 / 12
     cycles = round(model_setup['run_days'] / len(schedule)) + 1
@@ -59,6 +59,23 @@ def setup_run(daily_funds, run_months, bnb_price):
         i += 1
     # Initialize Variables
     model_setup['day'] = pd.to_datetime(date.today())
+
+    # ------ Set up Futures Behavior ------
+    schedule = ['dep', 'dep', 'claim']
+    model_setup['futures_interval'] = 7  # day interval between actions
+    model_setup['futures_compound_dep'] = 200  # How much money to deposit in order to compound
+    first_claim = 180  # Days before first claim, then follow schedule
+    cycles = round((model_setup['run_days'] - first_claim) / model_setup['futures_interval']) + 1
+    model_setup['futures_action'] = []
+    i = 1
+    while i <= round(first_claim / model_setup['futures_interval']) + 1:  # Fill the intervals before first claim
+        model_setup['futures_action'].append('dep')
+        i += 1
+    i = 1
+    while i <= cycles:  # Fill the remainder of the cycles
+        for j in schedule:
+            model_setup['futures_action'].append(j)
+        i += 1
 
     # ------ Set up Growth ------
     start = date(2023, 1, 1)  # Use the previous month start
