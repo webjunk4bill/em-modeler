@@ -68,10 +68,10 @@ def projections(data, time):
     projection = {'daily_ele_lp_change': data['total_ele_in_lps']['absolute'] / time.days,
                   'daily_trunk_change': data['trunk_lp_trunk']['absolute'] / time.days,
                   'daily_bnb_change': data['bnb_price']['absolute'] / time.days,
-                  'redemption_queue_change': data['redemption_queue']['absolute'] * 1E6 / time.days,
+                  'redemption_queue_change': data['redemption_queue']['absolute'] / time.days,
                   '$daily_trunk_buys': data['trunk_lp_busd']['absolute'] / time.days,
                   '$daily_depot_deposits': data['farmers_depot_deposits']['absolute'] / time.days,
-                  'daily_stampede_bonds': data['stampede_bonds']['absolute'] * 1E6 / time.days,
+                  'daily_stampede_bonds': data['stampede_bonds']['absolute'] / time.days,
                   '$daily_futures_deposits': data['futures_deposits']['absolute'] / time.days
                   }
 
