@@ -305,7 +305,7 @@ class BUSDFuturesEngine:
         self.start_rate = day_rate
         self.max_payout = 2500000
         self.max_balance = 1000000
-        self.max_available = 100000
+        self.max_available = 50000
         self.available = 0
         self.claimed = 0
         # self.claimed_pretax = 0
@@ -320,10 +320,11 @@ class BUSDFuturesEngine:
         """
         self.days_since_action += days
         self.total_days += days
-        if self.available > self.max_available:
-            pass  # No updates once any of the maximums are reached
-        else:
-            self.available = self.daily_payout * self.days_since_action
+        self.available = self.daily_payout * self.days_since_action
+        if self.available >= self.balance:  # Available can't exceed balance
+            self.available = self.balance
+        if self.available > self.max_available:  # Available can't exceed max available
+            self.available = self.max_available
 
     def claim(self):
         """
