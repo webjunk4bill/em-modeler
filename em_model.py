@@ -14,7 +14,8 @@ em_data = get_em_data(read_blockchain=False)  # False = pull from pickle vs quer
 # Edit parameters in setup_run.py to adjust model parameters
 model_setup = setup_run(50000, 12, em_data['bnb'].usd_value)
 # initialize variables
-futures = {}
+yesterday = model_setup['day'] - pd.Timedelta("1d")
+futures = {yesterday: em_data['busd_futures']}  # Start with current futures TVL
 redemptions_paid = 0
 running_income_funds = 0
 model_output = {}

@@ -64,15 +64,15 @@ def calc_delta(start, end):
     return abs_delta, ratio_pct
 
 
-def projections(data, time):
-    projection = {'daily_ele_lp_change': data['total_ele_in_lps']['absolute'] / time.days,
-                  'daily_trunk_change': data['trunk_lp_trunk']['absolute'] / time.days,
-                  'daily_bnb_change': data['bnb_price']['absolute'] / time.days,
-                  'redemption_queue_change': data['redemption_queue']['absolute'] / time.days,
-                  '$daily_trunk_buys': data['trunk_lp_busd']['absolute'] / time.days,
-                  '$daily_depot_deposits': data['farmers_depot_deposits']['absolute'] / time.days,
-                  'daily_stampede_bonds': data['stampede_bonds']['absolute'] / time.days,
-                  '$daily_futures_deposits': data['futures_deposits']['absolute'] / time.days
+def projections(data, hours):
+    projection = {'daily_ele_lp_change': data['total_ele_in_lps']['absolute'] / hours * 24,
+                  'daily_trunk_change': data['trunk_lp_trunk']['absolute'] / hours * 24,
+                  'daily_bnb_change': data['bnb_price']['absolute'] / hours * 24,
+                  'redemption_queue_change': data['redemption_queue']['absolute'] / hours * 24,
+                  '$daily_trunk_buys': data['trunk_lp_busd']['absolute'] / hours * 24,
+                  '$daily_depot_deposits': data['farmers_depot_deposits']['absolute'] / hours * 24,
+                  'daily_stampede_bonds': data['stampede_bonds']['absolute'] / hours * 24,
+                  '$daily_futures_deposits': data['futures_deposits']['absolute'] / hours * 24
                   }
 
     return projection
@@ -83,24 +83,22 @@ def projections(data, time):
 df = read_data()
 df.to_csv('../chain_data/trend.csv', float_format="%.3f")
 
-recent = pd.DataFrame({'absolute': (calc_delta(df.iloc[-1], df.iloc[-2]))[0],
-                       'percent': (calc_delta(df.iloc[-1], df.iloc[-2]))[1]})
+past_index = -3
+
+recent = pd.DataFrame({'absolute': (calc_delta(df.iloc[-1], df.iloc[past_index]))[0],
+                       'percent': (calc_delta(df.iloc[-1], df.iloc[past_index]))[1]})
 full = pd.DataFrame({'absolute': (calc_delta(df.iloc[-1], df.iloc[0]))[0],
                      'percent': (calc_delta(df.iloc[-1], df.iloc[0]))[1]})
 
-fname = "../chain_data/delta_{0}_{1}.csv".format(df.index[-2], df.index[-1])
+fname = "../chain_data/delta_{0}_{1}.csv".format(df.index[past_index], df.index[-1])
 recent.to_csv(fname, float_format="%.3f")
 fname = "../chain_data/delta_{0}_{1}.csv".format(df.index[0], df.index[-1])
 full.to_csv(fname, float_format="%.3f")
 
-if df.index[-1] - df.index[0] < pd.Timedelta("2W"):
-    delta = full
-    time = df.index[-1] - df.index[0]
-else:
-    delta = recent
-    time = df.index[-1] - df.index[-2]
+time_delta = df.index[-1] - df.index[past_index]
+num_hours = time_delta.days * 24 + time_delta.components.hours
 
-output = pd.Series(projections(delta.T, time))
+output = pd.Series(projections(recent.T, num_hours))
 output['$elephant/m'] = df.iloc[-1]['$elephant/m']
 output['ele_change_usd'] = -1 * output['$elephant/m'] / 1E6 * output['daily_ele_lp_change']
 output.to_csv('../chain_data/projections.csv', float_format="%.3f")

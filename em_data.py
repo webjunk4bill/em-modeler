@@ -2,10 +2,11 @@
 em_data.py
 Use this file to initialize and track all starting or historical data on the EM Platform
 """
+
 import addr_contracts
 import bsc_classes as bsc
 import addr_tokens
-from datetime import date
+import datetime as dt
 import pickle
 
 
@@ -40,15 +41,15 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['futures_busd_pool'] = 0  # Used to buffer Elephant sells
         em_data['staking_apr'] = 0.3 / 365
         em_data['farms_max_apr'] = 1.25 / 365
-        em_data['redemption_queue'] = 1.44E6
-        em_data['trunk_supply'] = 30.961E6
-        em_data['staking_balance'] = 8.883E6
-        stampede_bonds = 56.15E6
-        stampede_payouts = 60.12E6
-        em_data['farm_tvl'] = 7.535E6  # Yield is paid out on TVL
+        em_data['redemption_queue'] = 1.50E6
+        em_data['trunk_supply'] = 31.195E6
+        em_data['staking_balance'] = 8.509E6
+        stampede_bonds = 56.37E6
+        stampede_payouts = 60.63E6
+        em_data['farm_tvl'] = 7.564E6  # Yield is paid out on TVL
         em_data['farm_balance'] = em_data['farm_tvl'] / 2  # This is the total trunk balance in the farms
-        farm_depot_tvl = 196598  # In Trunk, TODO: should be able to read this automatically
-        farm_depot_claimed = 872925  # In Trunk
+        farm_depot_tvl = 101513  # In Trunk, TODO: should be able to read this automatically
+        farm_depot_claimed = 969771  # In Trunk
         em_data['trunk_held_wallets'] = em_data['trunk_supply'] * 0.0355  # Estimate based off bscscan token holders:
         # https://bscscan.com/token/tokenholderchart/0xdd325C38b12903B727D16961e61333f4871A70E0
         em_data['trunk_liquid_debt'] = em_data['staking_balance'] + em_data['trunk_held_wallets'] + \
@@ -58,7 +59,7 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['farmers_depot'] = bsc.YieldEngine(farm_depot_tvl + farm_depot_claimed, 1 / 30, 1)  # Farmer's Depot
         em_data['farmers_depot'].balance = farm_depot_tvl
         em_data['farmers_depot'].claimed = farm_depot_claimed  # need to do a manual update of what has happened to date
-        em_data['em_futures'] = bsc.BUSDFuturesEngine(0)  # Create futures engine
+        em_data['em_futures'] = bsc.BUSDFuturesEngine(726645)  # Create futures engine
         em_data['stampede'] = bsc.StampedeEngine(stampede_bonds)  # Create stampede engine
         em_data['stampede'].total_claims = stampede_payouts  # Update initial values
 
@@ -66,15 +67,15 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['trunk_total_debt'] = em_data['trunk_liquid_debt'] + em_data['stampede'].owed
 
         to_pickle = em_data
-        f = open('chain_data/emData_{0}.pkl'.format(date.today()), 'wb')
+        f = open('chain_data/emData_{0}.pkl'.format(dt.datetime.now().strftime('%Y-%m-%d %H:%M')), 'wb')
         pickle.dump(to_pickle, f)
         f.close()
     else:
-        f_o = open('chain_data/emData_2023-01-11.pkl', 'rb')  # TODO: figure out how to update this automatically
+        f_o = open('chain_data/emData_2023-01-24 19:15.pkl', 'rb')  # TODO: figure out how to update this automatically
         em_data = pickle.load(f_o)
         f_o.close()
 
     return em_data
 
 
-# data = get_em_data(read_blockchain=True)
+data = get_em_data(read_blockchain=True)
