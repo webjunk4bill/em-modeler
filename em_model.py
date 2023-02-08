@@ -12,11 +12,12 @@ em_data = get_em_data(read_blockchain=False)  # False = pull from pickle vs quer
 
 # Run Model Setup (starting funds, run quarters, current BNB price)
 # Edit parameters in setup_run.py to adjust model parameters
-model_setup = setup_run(50000, 12, em_data['bnb'].usd_value)
+model_setup = setup_run('2024-12-31', em_data['bnb'].usd_value)
 # initialize variables
 yesterday = model_setup['day'] - pd.Timedelta("1d")
-futures = {yesterday: em_data['busd_futures']}  # Start with current futures TVL
+futures = {yesterday: em_data['em_futures']}  # Start with current futures TVL
 redemptions_paid = 0
+cum_futures_payouts = 0
 running_income_funds = 0
 model_output = {}
 
@@ -116,7 +117,7 @@ for run in range(int(model_setup['run_days'])):
     action = ''
     for stake in futures.values():  # Need to process each separate futures stake
         stake.pass_days(1)
-        if stake.days_since_action == model_setup['futures_interval']:
+        if stake.days_since_action == model_setup['futures_interval'] or stake.available == stake.max_available:
             index = int(stake.total_days / model_setup['futures_interval'])
             action = model_setup['futures_action'][index]
             if action == 'dep':
@@ -149,7 +150,7 @@ for run in range(int(model_setup['run_days'])):
     elif model_setup['peg_trunk']:  # Allow up to 10% drop in Trunk Price
         trunk_sales = (1 - 0.9 ** 0.5) * em_data['trunk_busd_lp'].token_bal['TRUNK']
     else:
-        trunk_sales = daily_yield * model_setup['yield_sales'] * em_data['trunk_busd_lp'].price
+        trunk_sales = daily_yield * model_setup['yield_sales'] * em_data['trunk_busd_lp'].price * 2
     if trunk_sales > daily_yield:
         trunk_sales = daily_yield  # Never try to sell more than the actual yield
 
@@ -184,8 +185,8 @@ for run in range(int(model_setup['run_days'])):
     # ------ Arbitrage Trunk LP with Redemption Pool or Minting ------
     # SQRT(CP) will give perfect split.
     delta = (em_data['trunk_busd_lp'].const_prod ** 0.5 - em_data['trunk_busd_lp'].token_bal['BUSD'])
-    if em_data['trunk_busd_lp'].price <= 1.00 and redeem_wait_days < 25:  # No arbitrage until queue is reasonable.
-        em_data['trunk_busd_lp'].update_lp('BUSD', delta)
+    if em_data['trunk_busd_lp'].price <= 1.00 and redeem_wait_days < 30:  # No arbitrage until queue is reasonable.
+        em_data['trunk_busd_lp'].update_lp('BUSD', delta * 0.1)  # Don't arbitrage more than 10% of the delta in a day
         em_data['redemption_queue'] += delta * 0.1
     elif em_data['trunk_busd_lp'].price > 1.00:  # Trunk is over $1.  "Delta" will be negative
         em_data['trunk_busd_lp'].update_lp('TRUNK', abs(delta))  # Sell trunk on PCS
@@ -201,7 +202,8 @@ for run in range(int(model_setup['run_days'])):
     elif model_setup['peg_trunk']:
         trunk_to_sell = 0
     elif em_data['trunk_busd_lp'].price > 0.5:
-        trunk_to_sell = em_data['trunk_liquid_debt'] * model_setup['daily_liquid_trunk_sales']
+        trunk_to_sell = em_data['trunk_liquid_debt'] * model_setup['daily_liquid_trunk_sales'] * \
+                        em_data['trunk_busd_lp'].price
     else:
         trunk_to_sell = 0
     # Split between Redeem and Sell
@@ -263,6 +265,7 @@ for run in range(int(model_setup['run_days'])):
     total_growth_pct = (tomorrow_funds / today_funds - 1) * 100
     ele_purchase_growth_pct = (model_setup['buy_w_b'][tomorrow] / model_setup['buy_w_b'][today] - 1) * 100
     futures_growth_pct = (model_setup['buy_futures'][tomorrow] / model_setup['buy_futures'][today] - 1) * 100
+    cum_futures_payouts += futures_claimed
 
     # Output Results
     daily_snapshot = {
@@ -291,7 +294,8 @@ for run in range(int(model_setup['run_days'])):
         "trunk_treasury": em_data['trunk_treasury'],
         "trunk_support_pool": em_data['trunk_support_pool'],
         "redemption_pool": em_data['redemption_pool'],
-        "$redemptions_paid/m": (redemptions_paid + em_data['em_futures'].claimed) / 1E6,
+        "$redemptions_paid/m": redemptions_paid / 1E6,
+        "$futures_payouts/m": cum_futures_payouts / 1E6,
         "staking_balance/m": em_data['staking_balance'] / 1E6,
         "trunk_wallets/m": em_data['trunk_held_wallets'] / 1E6,
         'farm_tvl/m': em_data['farm_tvl'] / 1E6,

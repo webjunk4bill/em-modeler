@@ -85,14 +85,15 @@ def em_plot_time(em_df):
     em_df['staking_balance/m'].plot(ax=axes[1, 0], ylabel='Trunk (millions)', title='Staking Balance', grid=True)
     em_df['trunk_wallets/m'].plot(ax=axes[1, 1], ylabel='Trunk (millions)', title='Trunk Held in Wallets', grid=True)
     em_df['farm_tvl/m'].plot(ax=axes[0, 2], title='EM Farms TVL', ylabel='Trunk (millions)', grid=True)
-    em_df['bertha/T'].plot(ax=axes[0, 0], ylabel='Trillion Tokens', title='Bertha Size (Trillion Tokens)',
-                           sharex=False, sharey=False, grid=True)
+    em_df['queue_wait'].plot(ax=axes[0, 0], ylabel='Days', title='Redemption Queue Payout Wait',
+                             sharex=False, sharey=False, grid=True)
+
     plt.show()
     fig3.savefig('outputs/fig3_{0}.png'.format(dt.datetime.today()))
 
     fig4, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=2)
-    em_df['queue_wait'].plot(ax=axes[0, 0], ylabel='Days', title='Redemption Queue Payout Wait',
-                             sharex=False, sharey=False, grid=True)
+    em_df['bertha/T'].plot(ax=axes[0, 0], ylabel='Trillion Tokens', title='Bertha Size (Trillion Tokens)',
+                           sharex=False, sharey=False, grid=True)
     em_df['daily_ele_growth'].plot(ax=axes[0, 1], ylabel='% Growth', title='Daily Elephant Purchase Growth',
                                    sharex=False, sharey=False, grid=True)
     em_df['daily_futures_growth'].plot(ax=axes[1, 0], ylabel='% Growth',

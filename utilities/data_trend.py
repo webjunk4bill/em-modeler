@@ -83,7 +83,7 @@ def projections(data, hours):
 df = read_data()
 df.to_csv('../chain_data/trend.csv', float_format="%.3f")
 
-past_index = -3
+past_index = -5
 
 recent = pd.DataFrame({'absolute': (calc_delta(df.iloc[-1], df.iloc[past_index]))[0],
                        'percent': (calc_delta(df.iloc[-1], df.iloc[past_index]))[1]})
