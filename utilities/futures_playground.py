@@ -11,42 +11,38 @@ data = {'claimed': [0],
         'available': [0],
         'compounded': [0]
         }
-c_cnt = 0
 deposit = 200
-rolled = 0
 count = 0
-interval = 21
-first_claim = 300
+initial_count = 0
+
 # schedule = ['dep', 'dep', 'dep', 'dep', 'claim', 'claim', 'claim']
-schedule = ['dep', 'dep', 'claim']
-days = 365 * 4
+schedule = {  # Start from T = 0, always deposit first, than claim, then will reset
+    "initial": 365,
+    "dep": 14,
+    "claim": 21,
+}
+days = round(365 * 3)
 cycles = round(days / len(schedule)) + 1
 roll_claim = []
 i = 1
-while i <= cycles:  # Create full schedule for rolls and claims
-    for j in schedule:
-        roll_claim.append(j)
-    i += 1
 
 for i in range(days):
     engine.pass_days(1)
-    if count == interval:
-        action = roll_claim.pop(0)
-        if c_cnt < first_claim:
-            action = 'dep'
-            c_cnt += 1
-        if action == 'dep':
-            if engine.claimed < engine.max_payout:
-                engine.deposit(deposit)
+    count += 1
+    initial_count += 1
+    if count == schedule["dep"]:
+        if engine.claimed < engine.max_payout:
+            engine.deposit(deposit)
+        if initial_count < schedule["initial"]:
             count = 0
-        elif action == 'claim':
+    elif count == schedule["claim"]:
+        if initial_count < schedule["initial"]:
+            count = 0
+            pass
+        else:
             engine.claim()
-            first_claim = interval
             count = 0
-            c_cnt = 0
-    else:
-        c_cnt += 1
-        count += 1
+
     data['balance'].append(engine.balance)
     data['deposits'].append(engine.deposits)
     data['available'].append(engine.available)
@@ -62,7 +58,7 @@ f.close()
 df = pd.DataFrame(data)
 df.to_csv('temp.csv')
 df.plot(title="{1} Investment BUSD Futures, {2} Deposit every {0} days, Claim monthly after 3 months"\
-        .format(interval, funds_in, deposit),
+        .format(schedule['dep'], funds_in, deposit),
         xlabel='Days', ylabel='$USD', figsize=(14, 9), grid=True)
 
 print("Done")
