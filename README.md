@@ -1,5 +1,5 @@
 # em-modeler
-Model of the Elephant Money Protocol on BSC
+Model of the Elephant Money Protocol on the BNB-Chain
 
 ## Usage
 - Run **em_model.py** to generate the output files and plots
