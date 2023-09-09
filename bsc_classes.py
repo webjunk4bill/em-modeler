@@ -169,7 +169,7 @@ def get_ave_ele(busd_lp, bnb_lp, bnb_price):
     return ave_price
 
 
-class YieldEngine:
+class DepotEngine:
     def __init__(self, deposit, day_rate, max_payout):
         """
         This represents the new engine based on Farm Depot and Elephant Futures
@@ -293,32 +293,35 @@ class StampedeEngineV5:
         self.maturity += deposit * 2.05
 
 
-class BUSDFuturesEngine:
-    def __init__(self, deposit, day_rate=0.005):
+class YieldEngineV6:
+    def __init__(self, deposit, rate=0.005):
         """
-        This represents the new engine for BUSD Futures
+        This represents the new engine for BUSD Futures and Stampede
         Deposit in $.  Day Rate in %/day.  Max Payout as a multiplier of the deposit.
+        Rate needs to be put in each day to calculate proper available
         """
         self.deposits = deposit
         self.balance = self.deposits
         self.compounds = 0
-        self.rate = day_rate
-        self.start_rate = day_rate
+        self.rate = rate
+        self.rate_limiter = 1
         self.max_payout = 2500000
         self.max_balance = 1000000
         self.max_available = 50000
         self.available = 0
         self.claimed = 0
         # self.claimed_pretax = 0
+        self.daily_payout = deposit * rate
         self.taxes_paid = 0
-        self.daily_payout = deposit * day_rate
         self.days_since_action = 0
         self.total_days = 0
 
-    def pass_days(self, days):
+    def pass_days(self, days, rate=0.005):
         """
         Update the available balances based on number of days passed
         """
+        self.rate = rate
+        self.daily_payout = self.balance * self.rate * self.rate_limiter
         self.days_since_action += days
         self.total_days += days
         self.available = self.daily_payout * self.days_since_action
@@ -354,20 +357,20 @@ class BUSDFuturesEngine:
             self.available = 0
             self.days_since_action = 0
             self.deposits += deposit
-            self.update_rate()
+            self.update_rate_limiter()
 
-    def update_rate(self):
+    def update_rate_limiter(self):
         """Determines the interest rate based on compounded balance and updates the daily payout"""
         if self.compounds < 50000:
-            self.rate = self.start_rate
+            self.rate_limiter = 1
         elif 50000 <= self.compounds < 249999:
-            self.rate = self.start_rate * 0.9
+            self.rate_limiter = 0.9
         elif 250000 <= self.compounds < 499999:
-            self.rate = self.start_rate * 0.85
+            self.rate_limiter = 0.85
         elif 500000 <= self.compounds < 749999:
-            self.rate = self.start_rate * 0.75
+            self.rate_limiter = 0.75
         elif 750000 <= self.compounds < 999999:
-            self.rate = self.start_rate * 0.65
+            self.rate_limiter = 0.65
         elif self.compounds >= 1000000:
-            self.rate = self.start_rate * 0.5
+            self.rate_limiter = 0.5
         self.daily_payout = self.balance * self.rate
