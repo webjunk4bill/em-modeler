@@ -2,8 +2,12 @@ import bsc_classes as bsc
 import pandas as pd
 import pickle
 
-funds_in = 25000
+funds_in = 0
 engine = bsc.BUSDFuturesEngine(funds_in, 0.005)
+engine.balance = 92100
+engine.deposits = 37000
+engine.compounds = 55100
+engine.daily_payout = engine.balance * 0.005
 data = {'claimed': [0],
         'balance': [0],
         'deposits': [0],
@@ -17,9 +21,9 @@ initial_count = 0
 
 # schedule = ['dep', 'dep', 'dep', 'dep', 'claim', 'claim', 'claim']
 schedule = {  # Start from T = 0, always deposit first, than claim, then will reset
-    "initial": 365,
-    "dep": 14,
-    "claim": 21,
+    "initial": 60,
+    "dep": 20,
+    "claim": 30,
 }
 days = round(365 * 3)
 cycles = round(days / len(schedule)) + 1
@@ -48,7 +52,7 @@ for i in range(days):
     data['available'].append(engine.available)
     data['claimed'].append(engine.claimed)
     data['compounded'].append(engine.compounds)
-    data['realized_gains'].append(engine.claimed / engine.deposits * 100000)
+    data['realized_gains'].append(engine.claimed / engine.deposits)
 
 to_pickle = engine
 f = open('engine.pkl', 'wb')

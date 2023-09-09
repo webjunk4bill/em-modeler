@@ -215,8 +215,9 @@ class YieldEngine:
         self.daily_payout = self.deposit_base * self.rate
 
 
-class StampedeEngine:
+class StampedeEngineV5:
     """
+    This was Stampede v5, but now deprecated in favor of the "futures" style engine
     EM Stampede Engine
     Initializes with a starting deposit
     Actions require trunk price to get the peg adjusted yield rate
