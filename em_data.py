@@ -21,7 +21,6 @@ def get_em_data(*, read_blockchain: bool = False):
         # get EM info (this can be done automatically)
         # TODO: Convert Moralis calls to web3 module.  Seems a lot faster.
         # get LPs
-        """
         em_data['ele_bnb_lp'] = bsc.CakeLP(addr_tokens.Elephant, addr_tokens.BNB)
         em_data['ele_busd_lp'] = bsc.CakeLP(addr_tokens.Elephant, addr_tokens.BUSD)
         em_data['trunk_busd_lp'] = bsc.CakeLP(addr_tokens.Trunk, addr_tokens.BUSD)
@@ -38,7 +37,6 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['start_ele_price'] = ave_ele_price
         em_data['start_trunk_price'] = em_data['trunk_busd_lp'].price
         em_data['start_bnb_price'] = em_data['bnb'].usd_value
-        """
         # Read Contract Info
         c_futures = bsc.ContractReader('chain_data/stampede_abi.json', addr_contracts.futures_contract)
         em_data['futures_info'] = c_futures.get_futures_info()
