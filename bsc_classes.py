@@ -138,67 +138,79 @@ class GetWalletBalance:
             self.balance = float(result[0]["balance"]) / 1E18
 
 
-def read_yield_contract_info(contract_address):
-    """This function queries the stampede contract for the latest information"""
-    web3 = Web3(Web3.HTTPProvider(bsc_url)) # Create a web3 instance
-    with open('chain_data/stampede_abi.json', 'r') as abi_file:  # stampede abi same as futures abi
-        contract_abi = json.load(abi_file)
-    contract = web3.eth.contract(address=contract_address, abi=contract_abi)
-    function_name = "getInfo"  # Function to query main stampede information
-    result = contract.functions[function_name]().call()
-    users = result[0]
-    deposits = result[1] / 1E18
-    compounds = result[2] / 1E18
-    claims = result[3] / 1E18
-    balance = result[6] / 1E18
-    return {
-        "users": users,
-        "deposits": deposits,
-        "compounds": compounds,
-        "claims": claims,
-        "balance": balance
-    }
+class ContractReader:
+    def __init__(self, contract_abi, contract_address):
+        self.web3 = Web3(Web3.HTTPProvider(bsc_url))
+        with open(contract_abi, 'r') as abi_file:
+            contract_abi = json.load(abi_file)
+        self.contract = self.web3.eth.contract(address=contract_address, abi=contract_abi)
+        self.result_obj = self.Info()
 
+    class Info:
+        pass
 
-def read_trumpet_info(contract_address):
-    """This function queries the trumpet contract for the latest information"""
-    web3 = Web3(Web3.HTTPProvider(bsc_url)) # Create a web3 instance
-    with open('chain_data/trumpet_abi.json', 'r') as abi_file:
-        contract_abi = json.load(abi_file)
-    contract = web3.eth.contract(address=contract_address, abi=contract_abi)
-    function_name = "getInfo"  # Function to query main stampede information
-    result = contract.functions[function_name]().call()
-    users = result[0]
-    trunk = result[2] / 1E18
-    trumpet = result[3] / 1E18
-    price = result[4] / 1E18
-    return {
-        "users": users,
-        "trunk": trunk,
-        "trumpet": trumpet,
-        "price": price
-    }
+    def get_futures_info(self):
+        self.call_read_function_new('getInfo')
+        data = {
+            'users': self.result_obj.total_users,
+            'balance': self.result_obj.current_balance,
+            'compounds': self.result_obj.total_compound_deposited,
+            'claimed': self.result_obj.total_claimed
+        }
+        return data
 
+    def get_farm_info(self):
+        self.call_read_function_old('getInfo')
+        data = {
+            'users': self.result_obj.total_users,
+            'tvl': self.result_obj.current_balance,
+            'balance': self.result_obj.current_balance / 2
+        }
+        return data
 
-def read_em_farms_info(contract_address):
-    """This function queries the EM Farms contract for the latest information"""
-    web3 = Web3(Web3.HTTPProvider(bsc_url)) # Create a web3 instance
-    with open('chain_data/farms_abi.json', 'r') as abi_file:
-        contract_abi = json.load(abi_file)
-    contract = web3.eth.contract(address=contract_address, abi=contract_abi)
-    function_name = "getInfo"  # Function to query main stampede information
-    result = contract.functions[function_name]().call()
-    users = result[0]
-    deposits = result[1] / 1E18
-    tvl = result[2] / 1E18
-    claims = result[3] / 1E18
-    return {
-        "users": users,
-        "deposits": deposits,
-        "claims": claims,
-        "tvl": tvl,
-        "balance": tvl / 2
-    }
+    def get_trumpet_info(self):
+        self.call_read_function_old('getInfo')
+        data = {
+            'users': self.result_obj.users,
+            'trunk': self.result_obj.underlyingSupply,
+            'price': self.result_obj.price,
+            'trumpet': self.result_obj.supply
+        }
+        return data
+
+    def call_read_function_new(self, function_name):
+        """This is for a "newer" style of contract readout (outputs have "components") """
+        try:
+            # Call the read function (constant function)
+            result = self.contract.functions[function_name]().call()
+
+            # Iterate through the ABI to find the function definition
+            function_definition = self.contract.get_function_by_name(function_name)
+            func_outputs = function_definition.abi['outputs'][0]['components']
+            for item, result in zip(func_outputs, result):
+                if result > 100000:  # Distinguish between standard number and "solidity float" number
+                    setattr(self.result_obj, item['name'], result / 1E18)
+                else:
+                    setattr(self.result_obj, item['name'], result)
+        except Exception as e:
+            print(f"Error calling {function_name}: {e}")
+
+    def call_read_function_old(self, function_name):
+        try:
+            # Call the read function (constant function)
+            result = self.contract.functions[function_name]().call()
+
+            # Iterate through the ABI to find the function definition
+            function_definition = self.contract.get_function_by_name(function_name)
+            func_outputs = function_definition.abi['outputs']
+            for item, result in zip(func_outputs, result):
+                name = item['name'].lstrip('_')
+                if result > 100000:  # Distinguish between standard number and "solidity float" number
+                    setattr(self.result_obj, name, result / 1E18)
+                else:
+                    setattr(self.result_obj, name, result)
+        except Exception as e:
+            print(f"Error calling {function_name}: {e}")
 
 
 def elephant_buy(funds, busd_lp, bnb_lp, bnb_price):
