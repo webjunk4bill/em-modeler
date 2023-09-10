@@ -141,7 +141,7 @@ class GetWalletBalance:
 def read_yield_contract_info(contract_address):
     """This function queries the stampede contract for the latest information"""
     web3 = Web3(Web3.HTTPProvider(bsc_url)) # Create a web3 instance
-    with open('chain_data/stampede_abi.json', 'r') as abi_file:
+    with open('chain_data/stampede_abi.json', 'r') as abi_file:  # stampede abi same as futures abi
         contract_abi = json.load(abi_file)
     contract = web3.eth.contract(address=contract_address, abi=contract_abi)
     function_name = "getInfo"  # Function to query main stampede information
@@ -157,6 +157,47 @@ def read_yield_contract_info(contract_address):
         "compounds": compounds,
         "claims": claims,
         "balance": balance
+    }
+
+
+def read_trumpet_info(contract_address):
+    """This function queries the trumpet contract for the latest information"""
+    web3 = Web3(Web3.HTTPProvider(bsc_url)) # Create a web3 instance
+    with open('chain_data/trumpet_abi.json', 'r') as abi_file:
+        contract_abi = json.load(abi_file)
+    contract = web3.eth.contract(address=contract_address, abi=contract_abi)
+    function_name = "getInfo"  # Function to query main stampede information
+    result = contract.functions[function_name]().call()
+    users = result[0]
+    trunk = result[2] / 1E18
+    trumpet = result[3] / 1E18
+    price = result[4] / 1E18
+    return {
+        "users": users,
+        "trunk": trunk,
+        "trumpet": trumpet,
+        "price": price
+    }
+
+
+def read_em_farms_info(contract_address):
+    """This function queries the EM Farms contract for the latest information"""
+    web3 = Web3(Web3.HTTPProvider(bsc_url)) # Create a web3 instance
+    with open('chain_data/farms_abi.json', 'r') as abi_file:
+        contract_abi = json.load(abi_file)
+    contract = web3.eth.contract(address=contract_address, abi=contract_abi)
+    function_name = "getInfo"  # Function to query main stampede information
+    result = contract.functions[function_name]().call()
+    users = result[0]
+    deposits = result[1] / 1E18
+    tvl = result[2] / 1E18
+    claims = result[3] / 1E18
+    return {
+        "users": users,
+        "deposits": deposits,
+        "claims": claims,
+        "tvl": tvl,
+        "balance": tvl / 2
     }
 
 

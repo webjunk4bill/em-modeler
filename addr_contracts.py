@@ -8,6 +8,8 @@ redemption_pool = '0xD3B4fB63e249a727b9976864B28184b85aBc6fDf'
 em_graveyard = '0xF7cC784BD260eafC1193D337fFcEA4D6ddA0dd71'
 futures_contract = "0x5B24f7645eec47EDd997bF8faDF3E340518af11B"
 stampede_contract = "0x7f6ceCdD1b779E11E892643863Fd5BAE8DA171ce"
+busd_buffer_pool = "0xd9dE89efB084FfF7900Eac23F2A991894500Ec3E"
+trumpet_contract = "0x574a691D05EeE825299024b2dE584B208647e073"
 
 elephant_farms_max_apr = 1.25
 elephant_stampede_max_apr = 2.05
