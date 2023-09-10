@@ -1,7 +1,9 @@
 # Wallet Holdings
 from moralis import evm_api
 import numpy as np
-from api import api_key
+from api import api_key, bsc_url
+from web3 import Web3
+import json
 
 
 class Token:
@@ -134,6 +136,28 @@ class GetWalletBalance:
             self.balance = float(result[0]["balance"]) / 1E9
         else:
             self.balance = float(result[0]["balance"]) / 1E18
+
+
+def read_yield_contract_info(contract_address):
+    """This function queries the stampede contract for the latest information"""
+    web3 = Web3(Web3.HTTPProvider(bsc_url)) # Create a web3 instance
+    with open('chain_data/stampede_abi.json', 'r') as abi_file:
+        contract_abi = json.load(abi_file)
+    contract = web3.eth.contract(address=contract_address, abi=contract_abi)
+    function_name = "getInfo"  # Function to query main stampede information
+    result = contract.functions[function_name]().call()
+    users = result[0]
+    deposits = result[1] / 1E18
+    compounds = result[2] / 1E18
+    claims = result[3] / 1E18
+    balance = result[6] / 1E18
+    return {
+        "users": users,
+        "deposits": deposits,
+        "compounds": compounds,
+        "claims": claims,
+        "balance": balance
+    }
 
 
 def elephant_buy(funds, busd_lp, bnb_lp, bnb_price):
