@@ -397,6 +397,8 @@ class YieldEngineV6:
         """
         Update the available balances based on number of days passed
         """
+        if self.claimed > self.max_payout:  # Wallet is done
+            pass
         self.rate = rate
         self.daily_payout = self.balance * self.rate * self.rate_limiter
         self.days_since_action += days
@@ -451,3 +453,23 @@ class YieldEngineV6:
         elif self.compounds >= 1000000:
             self.rate_limiter = 0.5
         self.daily_payout = self.balance * self.rate
+
+
+class Trumpet:
+    def __init__(self, users, backing, supply):
+        self.users = users
+        self.backing = backing
+        self.supply = supply
+        self.price = self.backing / self.supply
+
+    def mint_trumpet(self, trunk):
+        minted = trunk * 0.95 / self.price
+        self.supply += minted
+        self.backing += trunk
+        self.price = self.backing / self.supply
+
+        return minted
+
+    def burn_trumpet(self, trumpet):
+        self.supply -= trumpet
+        self.price = self.backing / self.supply

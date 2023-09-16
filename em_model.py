@@ -12,10 +12,34 @@ em_data = get_em_data(read_blockchain=False)  # False = pull from pickle vs quer
 
 # Run Model Setup (starting funds, run quarters, current BNB price)
 # Edit parameters in setup_run.py to adjust model parameters
-model_setup = setup_run('2024-12-31', em_data['bnb'].usd_value)
-# initialize variables
+model_setup = setup_run('2025-12-31', em_data['bnb'].usd_value)
+# --- initialize variables
+# Set up current Futures Stakes (just take average of the total)
+futures_counter = 0
+futures = []
+avg_stake = em_data['futures_info']['balance'] / em_data['futures_info']['users']
+avg_compounded = em_data['futures_info']['compounds'] / em_data['futures_info']['users']
+avg_claimed = em_data['futures_info']['claimed'] / em_data['futures_info']['users']
+i = 0
+while i < em_data['futures_info']['users']:
+    futures.append(bsc.YieldEngineV6(avg_stake, 0.005))
+    futures[i].compounds = avg_compounded
+    futures[i].claimed = avg_claimed
+    days_passed = int(model_setup['f_claims_usd'] / futures[i].daily_payout) + 1
+    futures[i].pass_days(days_passed)  # Need to build up the proper amount available to match daily claim total
+    futures[i].total_days = model_setup['f_claim_wait'] + 1  # Assume all current wallets will start with actions
+    i += 1
+# Set up current Stampede Stakes
+stampede = []
+avg_stake = em_data['stampede_info']['balance'] / em_data['stampede_info']['users']
+avg_compounded = em_data['stampede_info']['compounds'] / em_data['stampede_info']['users']
+i = 0
+while i < em_data['stampede_info']['users']:
+    stampede.append(bsc.YieldEngineV6(avg_stake, 0.005))
+    stampede[i].compounds = avg_compounded
+    i += 1
+# Others
 yesterday = model_setup['day'] - pd.Timedelta("1d")
-futures = {yesterday: em_data['em_futures']}  # Start with current futures TVL
 redemptions_paid = 0
 cum_futures_payouts = 0
 running_income_funds = 0
@@ -25,8 +49,7 @@ model_output = {}
 for run in range(int(model_setup['run_days'])):
     # Daily Bertha Support ---------------------------------------------------------------------
     average_ele_price = bsc.get_ave_ele(em_data['ele_busd_lp'], em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
-    daily_bertha_support_usd = em_data['bertha'] * average_ele_price * \
-                               (model_setup['redemption_support_apr'] + model_setup['trunk_support_apr'])
+    daily_bertha_support_usd = em_data['bertha'] * average_ele_price * model_setup['bertha_outflows']
     em_assets_day_start = em_data['bertha'] * average_ele_price + em_data['trunk_busd_lp'].token_bal['BUSD'] + \
                           em_data['ele_busd_lp'].token_bal['BUSD'] + em_data['ele_bnb_lp'].token_bal['WBNB'] * \
                           em_data['bnb'].usd_value + em_data['busd_treasury'] + em_data['trunk_treasury'] * \
@@ -38,10 +61,8 @@ for run in range(int(model_setup['run_days'])):
     begin_trunk_price = em_data['trunk_busd_lp'].price
 
     # Incoming Funds ---------------------------------------------------------------------
-    # --- Peanuts ---
-    em_data['stampede'].bond(model_setup['buy_peanuts'][model_setup['day']] / max(em_data['trunk_busd_lp'].price, 0.25))
-    em_data['busd_treasury'] += model_setup['buy_peanuts'][model_setup['day']]
     # --- Farmer's Depot ---
+    '''
     depot_buy_usd = model_setup['buy_depot'][model_setup['day']]  # Don't want to directly modify the starting value
     if em_data['trunk_busd_lp'].price < 0.98:  # 10% of funds auto purchase market Trunk if below $0.98
         em_data['trunk_treasury'] += em_data['trunk_busd_lp'].update_lp('BUSD', depot_buy_usd * 0.1)
@@ -50,18 +71,16 @@ for run in range(int(model_setup['run_days'])):
     em_data['farmers_depot'].deposit(depot_buy)
     em_data['busd_treasury'] += depot_buy_usd  # funds go to busd treasury
     # --- Futures ---
-    # Create a new futures stake with the daily deposit money
-    futures[model_setup['day']] = bsc.BUSDFuturesEngine(model_setup['buy_futures'][model_setup['day']])
     em_data['futures_busd_pool'] += model_setup['buy_futures'][model_setup['day']] * 0.1  # 10% hold for payouts
     em_data['busd_treasury'] += model_setup['buy_futures'][model_setup['day']] * 0.9  # remainder to busd treasury
-
+    '''
     # Handle Elephant Buy/Sell ---------------------------------------------------------------------
     # ------ BwB ------
-    ele_bought = bsc.elephant_buy(model_setup['buy_w_b'][model_setup['day']], em_data['ele_busd_lp'],
+    ele_bought = bsc.elephant_buy(model_setup['buy_volume'][model_setup['day']], em_data['ele_busd_lp'],
                                   em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
     em_data['bertha'] += ele_bought * 0.08  # 8% tax to Bertha
     # ------ SwB ------
-    ele_sold = model_setup['sell_w_b'] * model_setup['buy_w_b'][model_setup['day']] / average_ele_price
+    ele_sold = model_setup['sell_volume'] / average_ele_price
     # 92% of Elephant sold goes to LP, 8% to Bertha
     busd_removed = bsc.elephant_sell(ele_sold * 0.92, em_data['ele_busd_lp'], em_data['ele_bnb_lp'],
                                      em_data['bnb'].usd_value)
@@ -94,36 +113,45 @@ for run in range(int(model_setup['run_days'])):
         em_data['redemption_queue'] = 0  # Queue is now at 0
 
     # ------ Trunk Support ------
+    # TODO: This section needs to be changed based on Trumpet
     support_funds = em_data['bertha'] * model_setup['trunk_support_apr']  # Daily funds in ELEPHANT
     em_data['bertha'] -= support_funds  # Update Bertha balance
     busd_received = bsc.elephant_sell(support_funds, em_data['ele_busd_lp'], em_data['ele_bnb_lp'],
                                       em_data['bnb'].usd_value)
-    em_data['trunk_support_pool'] += busd_received  # Add BUSD funds to the trunk support pool
-    if em_data['trunk_busd_lp'].price < 1:
-        delta = (em_data['trunk_busd_lp'].const_prod ** 0.5 - em_data['trunk_busd_lp'].token_bal['BUSD'])
-        if em_data['trunk_support_pool'] >= delta:
-            em_data['trunk_busd_lp'].update_lp('BUSD', delta)  # Buy Trunk off PCS
-            em_data['trunk_support_pool'] -= delta
-        else:
-            em_data['trunk_busd_lp'].update_lp('BUSD', em_data['trunk_support_pool'])  # Buy Trunk off PCS
-            em_data['trunk_support_pool'] = 0  # All funds spent
-        em_data['trunk_treasury'] += em_data[
-            'trunk_busd_lp'].tokens_removed  # Trunk is deposited in the trunk treasury for further use
-    else:
-        pass  # support pool just grows if Trunk is already at Peg
+    trunk_purchased = em_data['trunk_busd_lp'].update_lp('BUSD', busd_received)  # Buy Trunk off PCS
+    minted = em_data['trumpet'].mint_trumpet(trunk_purchased)  # Mint trumpet and burn it
+    em_data['trumpet'].burn_trumpet(minted)
 
-    # ------ Futures Payouts ------
+    # ------ Process Futures ------
+    # each day, a certain number of deposits and claims will be processed, the rest will "do nothing"
     futures_claimed = 0
-    action = ''
-    for stake in futures.values():  # Need to process each separate futures stake
+    compound_counter = model_setup['f_compounds']
+    claim_counter = model_setup['f_claims']
+    new_counter = model_setup['f_new_wallets']
+    i = 1
+    # progress current stakes
+    for stake in futures:  # Need to process each separate futures stake
         stake.pass_days(1)
-        if stake.days_since_action == model_setup['futures_interval'] or stake.available == stake.max_available:
-            index = int(stake.total_days / model_setup['futures_interval'])
-            action = model_setup['futures_action'][index]
-            if action == 'dep':
-                stake.deposit(model_setup['futures_compound_dep'])  # deposit the money to compound stake
-            elif action == 'claim':
-                futures_claimed += stake.claim()
+        if i < futures_counter:  # Don't take action on stake that was just done
+            i += 1
+        elif stake.total_days < model_setup['f_claim_wait']:  # stake too new, pass
+            futures_counter += 1
+            pass
+        elif compound_counter > 0:  # stake ready for a compound
+            stake.deposit(model_setup['f_compound_usd'])
+            compound_counter -= 1
+            futures_counter += 1
+            i += 1
+        elif claim_counter > 0 or stake.available == stake.max_available:  # stake ready for a claim
+            futures_claimed += stake.claim()
+            claim_counter -= 1
+            futures_counter += 1
+            i += 1
+        else:  # rest of stakes do nothing today
+            pass
+    if futures_counter >= len(futures):  # reset counter once through processing all stakes
+        futures_counter = 0
+    # Payout futures and replenish buffer pool if needed
     if em_data['futures_busd_pool'] >= futures_claimed:
         em_data['futures_busd_pool'] -= futures_claimed  # payout claims
     else:  # Sell Elephant to replenish pool.  Sell a 10% Buffer
@@ -132,6 +160,8 @@ for run in range(int(model_setup['run_days'])):
         em_data['futures_busd_pool'] += bsc.elephant_sell(to_sell, em_data['ele_busd_lp'], em_data['ele_bnb_lp'],
                                                           em_data['bnb'].usd_value)  # sell ELEPHANT
         em_data['futures_busd_pool'] -= futures_claimed  # payout claims
+
+    # TODO: Good until Here!
 
     # Handle Yield and Sales/Redemptions (all in Trunk) ----------------------------------------------------------------
     # ------ Calculate Daily Trunk Yield ------ #
@@ -247,23 +277,23 @@ for run in range(int(model_setup['run_days'])):
     usd_total_debt = trunk_total_debt * em_data['trunk_busd_lp'].price
     today = model_setup['day']
     tomorrow = model_setup['day'] + pd.Timedelta(1, "d")
-    running_income_funds += model_setup['buy_w_b'][today] + \
+    running_income_funds += model_setup['buy_volume'][today] + \
                             model_setup['buy_trunk_pcs'][today] + \
                             model_setup['buy_depot'][today] + \
                             model_setup['buy_peanuts'][today] + \
                             model_setup['buy_futures'][today]
-    today_funds = model_setup['buy_w_b'][today] + \
+    today_funds = model_setup['buy_volume'][today] + \
                   model_setup['buy_trunk_pcs'][today] + \
                   model_setup['buy_depot'][today] + \
                   model_setup['buy_peanuts'][today] + \
                   model_setup['buy_futures'][today]
-    tomorrow_funds = model_setup['buy_w_b'][tomorrow] + \
+    tomorrow_funds = model_setup['buy_volume'][tomorrow] + \
                      model_setup['buy_trunk_pcs'][tomorrow] + \
                      model_setup['buy_depot'][tomorrow] + \
                      model_setup['buy_peanuts'][tomorrow] + \
                      model_setup['buy_futures'][tomorrow]
     total_growth_pct = (tomorrow_funds / today_funds - 1) * 100
-    ele_purchase_growth_pct = (model_setup['buy_w_b'][tomorrow] / model_setup['buy_w_b'][today] - 1) * 100
+    ele_purchase_growth_pct = (model_setup['buy_volume'][tomorrow] / model_setup['buy_volume'][today] - 1) * 100
     futures_growth_pct = (model_setup['buy_futures'][tomorrow] / model_setup['buy_futures'][today] - 1) * 100
     cum_futures_payouts += futures_claimed
 

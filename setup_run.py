@@ -11,22 +11,47 @@ def setup_run(end_date, bnb_price):
     Function returns a dictionary, model_setup, which contains all the parameters needed to execute the simulation run
     """
     # Initialize dictionary with governance contracts
-    model_setup = {'trunk_support_apr': 0.02 / 365,  # latest as of end Jan '23
-                   'redemption_support_apr': 0.035 / 365,
+    # get data from dune 30 day dashboard (Governance)
+    avg_bertha = 167.2E12
+    peg_support = 295.5E9
+    redeem_support = 495.7E9
+    # All APRs are the daily equivalent
+    model_setup = {'trunk_support_apr': peg_support / avg_bertha / 30,
+                   'redemption_support_apr': redeem_support / avg_bertha / 30,
                    'elephant_buyback_apr': 0.5,
+                   'nft_royalty_apr': 0.01 / 365,
+                   'performance_support_apr': 0.01 / 365,
                    'day': pd.Timestamp(date.today())
                    }
+    model_setup['bertha_outflows'] = model_setup['trunk_support_apr'] + model_setup['redemption_support_apr'] + \
+        model_setup['nft_royalty_apr'] + model_setup['performance_support_apr']
 
     # Incoming Funds
     # These are starting values.  They can be adjusted during the run as needed (FOMO, etc.)
-    buy_w_b = 88244
+    # Get data from Dune dashboards (Governance, LP Detailed)
+    bwb_taxes = 1.7E12 / 30
+    buyback_volume = 5.5E12 / 30
+    avg_ele_usd = 0.000000386
+    sell_volume = 50000
     buy_trunk_pcs = 0  # Trunk buys off PCS.  Assume goes to wallets for arbitrages, swing trading
-    buy_depot = 250  # Also used for Minting
-    buy_peanuts = 5450
-    buy_futures = 79360
+    bwb_volume = bwb_taxes / 0.08 * avg_ele_usd  # Bertha collects 8% tax
+    # Futures, estimated based off data 01Sept to 15Sept, 2023:
+    futures = {'f_new_wallets': 10,
+               'f_new_deposit_usd': 4700,
+               'f_compounds': 90,
+               'f_compound_usd': 200,
+               'f_claims': 53,
+               'f_claims_usd': 300,
+               'f_days_running': 237
+               }
+    buy_futures = futures['f_new_wallets'] * futures['f_new_deposit_usd'] + \
+        futures['f_compound_usd'] * futures['f_compounds']
+    model_setup['f_claim_wait'] = 120
+    model_setup = {**model_setup, **futures}
+    buy_depot = 0
 
     # Platform Sales
-    model_setup['sell_w_b'] = 0.05  # Percentage of BwB volume
+    model_setup['sell_volume'] = sell_volume  # Percentage of BwB volume
     # ele_market_buy = 0
     # ele_market_sell = 0
     model_setup['peg_trunk'] = False  # This will over-ride the amount of sales in order to keep Trunk near $1
@@ -49,7 +74,7 @@ def setup_run(end_date, bnb_price):
     days_temp = end_date - model_setup['day']
     model_setup['run_days'] = days_temp.days
     full_range = pd.date_range(model_setup['day'], end_date, freq="D")
-
+    '''
     # Setup Stampede
     schedule = ['roll', 'claim', 'hold']
     cycles = round(model_setup['run_days'] / len(schedule)) + 1
@@ -62,8 +87,7 @@ def setup_run(end_date, bnb_price):
 
     # ------ Set up Futures Behavior ------
     schedule = ['dep', 'dep', 'claim']
-    model_setup['futures_interval'] = 7  # day interval between actions
-    model_setup['futures_compound_dep'] = 200  # How much money to deposit in order to compound
+    
     first_claim = 90  # Days before first claim, then follow schedule
     cycles = round((model_setup['run_days'] - first_claim) / model_setup['futures_interval']) + 1
     model_setup['futures_action'] = []
@@ -76,6 +100,7 @@ def setup_run(end_date, bnb_price):
         for j in schedule:
             model_setup['futures_action'].append(j)
         i += 1
+    '''
 
     # ------ Set up BNB Growth ------
     bnb_price_movement = [bnb_price, 350, 400, 500, 600]  # This will be split over the run period.
@@ -91,7 +116,7 @@ def setup_run(end_date, bnb_price):
     temp_ele_s = pd.Series(ele_buy_multiplier, index=ele_sparse_range)
     temp_ele_s[end_date] = 1
     temp_ele_full = pd.Series(temp_ele_s, index=full_range).interpolate()
-    model_setup['buy_w_b'] = np.multiply(temp_ele_full, buy_w_b)  # This in $USD
+    model_setup['buy_volume'] = np.multiply(temp_ele_full, bwb_volume)  # This in $USD
 
     # Other Income
     income_multiplier = [1, 1]
@@ -101,7 +126,6 @@ def setup_run(end_date, bnb_price):
     temp_income_full = pd.Series(temp_income_s, index=full_range).interpolate()
     model_setup['buy_trunk_pcs'] = np.multiply(temp_income_full, buy_trunk_pcs)
     model_setup['buy_depot'] = np.multiply(temp_income_full, buy_depot)
-    model_setup['buy_peanuts'] = np.multiply(temp_income_full, buy_peanuts)
     model_setup['buy_futures'] = np.multiply(temp_income_full, buy_futures)
 
     return model_setup

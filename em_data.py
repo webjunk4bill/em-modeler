@@ -32,6 +32,7 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['trunk_treasury'] = bsc.GetWalletBalance(addr_contracts.trunk_treasury, addr_tokens.Trunk).balance
         em_data['redemption_pool'] = bsc.GetWalletBalance(addr_contracts.redemption_pool, addr_tokens.BUSD).balance
         em_data['graveyard'] = bsc.GetWalletBalance(addr_contracts.em_graveyard, addr_tokens.Elephant).balance
+        em_data['futures_busd_pool'] = bsc.GetWalletBalance(addr_contracts.busd_buffer_pool,addr_tokens.BUSD).balance
         # Calculate and set starting values
         ave_ele_price = bsc.get_ave_ele(em_data['ele_busd_lp'], em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
         em_data['start_ele_price'] = ave_ele_price
@@ -45,17 +46,17 @@ def get_em_data(*, read_blockchain: bool = False):
         c_farms = bsc.ContractReader('chain_data/farms_abi.json', addr_contracts.elephant_farms)
         em_data['farm_info'] = c_farms.get_farm_info()
         c_trumpet = bsc.ContractReader('chain_data/trumpet_abi.json', addr_contracts.trumpet_contract)
-        em_data['trumpet_info'] = c_trumpet.get_trumpet_info()
+        temp = c_trumpet.get_trumpet_info()
+        em_data['trumpet'] = bsc.Trumpet(temp['users'], temp['trunk'], temp['trumpet'])
 
         # get EM Manual Info
         em_data['farms_max_apr'] = 1.25 / 365
         em_data['trunk_support_pool'] = 0
-        em_data['futures_busd_pool'] = 0  # Used to buffer Elephant sells
         em_data['redemption_queue'] = 2.61E6
         em_data['trunk_supply'] = 34.207E6
         em_data['trunk_held_wallets'] = em_data['trunk_supply'] * 0.09  # Estimate based off bscscan token holders:
         # https://bscscan.com/token/tokenholderchart/0xdd325C38b12903B727D16961e61333f4871A70E0
-        em_data['trunk_liquid_debt'] = em_data['trumpet_info']['trunk'] + em_data['trunk_held_wallets'] + \
+        em_data['trunk_liquid_debt'] = em_data['trumpet'].backing + em_data['trunk_held_wallets'] + \
                                        em_data['farm_info']['balance']
 
         # Calc total debt
@@ -66,11 +67,11 @@ def get_em_data(*, read_blockchain: bool = False):
         pickle.dump(to_pickle, f)
         f.close()
     else:
-        f_o = open('chain_data/emData_2023-09-09 22:05.pkl', 'rb')  # TODO: figure out how to update this automatically
+        f_o = open('chain_data/emData_2023-09-16 11:42.pkl', 'rb')  # TODO: figure out how to update this automatically
         em_data = pickle.load(f_o)
         f_o.close()
 
     return em_data
 
 
-data = get_em_data(read_blockchain=True)
+# data = get_em_data(read_blockchain=True)
