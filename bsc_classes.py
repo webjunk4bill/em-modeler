@@ -1,4 +1,6 @@
 # Wallet Holdings
+import time
+
 from moralis import evm_api
 import numpy as np
 from api import api_key, bsc_url
@@ -200,6 +202,10 @@ class ContractReader:
             # Call the read function (constant function)
             result = self.contract.functions[function_name]().call()
 
+            if len(result) == 1:
+                setattr(self.result_obj, function_name, result)
+                return
+
             # Iterate through the ABI to find the function definition
             function_definition = self.contract.get_function_by_name(function_name)
             func_outputs = function_definition.abi['outputs']
@@ -211,6 +217,11 @@ class ContractReader:
                     setattr(self.result_obj, name, result)
         except Exception as e:
             print(f"Error calling {function_name}: {e}")
+
+    def call_read_single_obj(self, function_name):
+        result = self.contract.functions[function_name]().call()
+        setattr(self.result_obj, function_name, result)
+        return result
 
 
 def elephant_buy(funds, busd_lp, bnb_lp, bnb_price):
@@ -456,6 +467,8 @@ class YieldEngineV6:
 
 
 class Trumpet:
+    """This Class defines the function of Trumpet"""
+
     def __init__(self, users, backing, supply):
         self.users = users
         self.backing = backing
@@ -473,3 +486,25 @@ class Trumpet:
     def burn_trumpet(self, trumpet):
         self.supply -= trumpet
         self.price = self.backing / self.supply
+
+
+class Unlimited:
+    """This class defines the function of NFTs"""
+
+    def __init__(self, supply):
+        self.supply = supply
+        self._price = None
+
+    @property
+    def price(self):
+        return 2 ** (int(self.supply / 10000))
+
+    def mint(self, number):
+        self.supply += number
+
+    def mint_and_get_usd(self, number, bnb_price):
+        usd_value = 0
+        for _ in range(number):  # process each NFT individually in case of price crossover
+            usd_value += self.price * bnb_price
+            self.supply += 1
+        return usd_value

@@ -48,6 +48,8 @@ def get_em_data(*, read_blockchain: bool = False):
         c_trumpet = bsc.ContractReader('chain_data/trumpet_abi.json', addr_contracts.trumpet_contract)
         temp = c_trumpet.get_trumpet_info()
         em_data['trumpet'] = bsc.Trumpet(temp['users'], temp['trunk'], temp['trumpet'])
+        c_unlimited = bsc.ContractReader('chain_data/unlimited_abi.json', addr_contracts.nft_contract)
+        em_data['nft'] = bsc.Unlimited(c_unlimited.call_read_single_obj('totalSupply'))
 
         # get EM Manual Info
         em_data['farms_max_apr'] = 1.25 / 365
@@ -67,7 +69,7 @@ def get_em_data(*, read_blockchain: bool = False):
         pickle.dump(to_pickle, f)
         f.close()
     else:
-        f_o = open('chain_data/emData_2023-09-16 11:42.pkl', 'rb')  # TODO: figure out how to update this automatically
+        f_o = open('chain_data/emData_2023-09-16 13:48.pkl', 'rb')  # TODO: figure out how to update this automatically
         em_data = pickle.load(f_o)
         f_o.close()
 

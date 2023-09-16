@@ -70,10 +70,22 @@ for run in range(int(model_setup['run_days'])):
     depot_buy = depot_buy_usd / max(em_data['trunk_busd_lp'].price, 0.25)  # Convert to Trunk
     em_data['farmers_depot'].deposit(depot_buy)
     em_data['busd_treasury'] += depot_buy_usd  # funds go to busd treasury
-    # --- Futures ---
-    em_data['futures_busd_pool'] += model_setup['buy_futures'][model_setup['day']] * 0.1  # 10% hold for payouts
-    em_data['busd_treasury'] += model_setup['buy_futures'][model_setup['day']] * 0.9  # remainder to busd treasury
     '''
+    # --- new Futures stakes ---
+    for _ in range(model_setup['f_new_wallets']):
+        em_data['futures_busd_pool'] += model_setup['f_new_deposit_usd'] * 0.1
+        em_data['busd_treasury'] += model_setup['f_new_deposit_usd'] * 0.9
+        futures.append(bsc.YieldEngineV6(model_setup['f_new_deposit_usd'], 0.005))  # create new stake
+    # --- NFT Mints ---
+    mint_funds = em_data['nft'].mint_and_get_usd(model_setup['nft_mints'], begin_bnb_price)
+    ele_bought = bsc.elephant_buy(mint_funds, em_data['ele_busd_lp'], em_data['ele_bnb_lp'], begin_bnb_price)
+    em_data['bertha'] += ele_bought  # bertha gets full amount of mint volume
+    # --- NFT Marketplace Sales ---
+    # Market sells are 90% of the current mint price and Bertha gets a 30% cut of that
+    sell_funds = em_data['nft'].price * begin_bnb_price * model_setup['nft_market_sells'] * 0.9 * 0.3
+    ele_bought = bsc.elephant_buy(sell_funds, em_data['ele_busd_lp'], em_data['ele_bnb_lp'], begin_bnb_price)
+    em_data['bertha'] += ele_bought  # bertha gets full amount of mint volume
+
     # Handle Elephant Buy/Sell ---------------------------------------------------------------------
     # ------ BwB ------
     ele_bought = bsc.elephant_buy(model_setup['buy_volume'][model_setup['day']], em_data['ele_busd_lp'],
@@ -113,7 +125,6 @@ for run in range(int(model_setup['run_days'])):
         em_data['redemption_queue'] = 0  # Queue is now at 0
 
     # ------ Trunk Support ------
-    # TODO: This section needs to be changed based on Trumpet
     support_funds = em_data['bertha'] * model_setup['trunk_support_apr']  # Daily funds in ELEPHANT
     em_data['bertha'] -= support_funds  # Update Bertha balance
     busd_received = bsc.elephant_sell(support_funds, em_data['ele_busd_lp'], em_data['ele_bnb_lp'],
@@ -122,12 +133,16 @@ for run in range(int(model_setup['run_days'])):
     minted = em_data['trumpet'].mint_trumpet(trunk_purchased)  # Mint trumpet and burn it
     em_data['trumpet'].burn_trumpet(minted)
 
-    # ------ Process Futures ------
+    # ------ NFT Royalties ------
+    # tokens are distributed directly to stakers
+    daily_royalty = em_data['bertha'] * model_setup['nft_royalty_apr']
+    em_data['bertha'] -= daily_royalty
+
+    # ------ Process Futures Stakes ------
     # each day, a certain number of deposits and claims will be processed, the rest will "do nothing"
     futures_claimed = 0
     compound_counter = model_setup['f_compounds']
     claim_counter = model_setup['f_claims']
-    new_counter = model_setup['f_new_wallets']
     i = 1
     # progress current stakes
     for stake in futures:  # Need to process each separate futures stake

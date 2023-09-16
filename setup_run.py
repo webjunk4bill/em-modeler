@@ -35,6 +35,8 @@ def setup_run(end_date, bnb_price):
     sell_volume = 50000
     buy_trunk_pcs = 0  # Trunk buys off PCS.  Assume goes to wallets for arbitrages, swing trading
     bwb_volume = bwb_taxes / 0.08 * avg_ele_usd  # Bertha collects 8% tax
+    model_setup['nft_mints'] = 18  # average daily
+    model_setup['nft_market_sells'] = 25  # average daily
     # Futures, estimated based off data 01Sept to 15Sept, 2023:
     futures = {'f_new_wallets': 10,
                'f_new_deposit_usd': 4700,
