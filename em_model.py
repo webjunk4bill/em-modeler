@@ -33,10 +33,14 @@ while i < em_data['futures_info']['users']:
 stampede = []
 avg_stake = em_data['stampede_info']['balance'] / em_data['stampede_info']['users']
 avg_compounded = em_data['stampede_info']['compounds'] / em_data['stampede_info']['users']
+avg_claimed = em_data['stampede_info']['claimed'] / em_data['stampede_info']['users']
 i = 0
+stp_rate = 0.005 * em_data['trunk_busd_lp'].price
 while i < em_data['stampede_info']['users']:
-    stampede.append(bsc.YieldEngineV6(avg_stake, 0.005))
+    stampede.append(bsc.YieldEngineV6(avg_stake, 0.005 * stp_rate))
     stampede[i].compounds = avg_compounded
+    stampede[i].claimed = avg_claimed
+    stampede[i].pass_days(int(i/30) + 1, stp_rate)  # this will set up a varying amount (to 6 months) of available
     i += 1
 # Others
 yesterday = model_setup['day'] - pd.Timedelta("1d")
@@ -47,6 +51,9 @@ model_output = {}
 
 # Create and Run Model
 for run in range(int(model_setup['run_days'])):
+    # Initialize Variables
+    trunk_yield = 0
+    stp_rate = 0.005 * em_data['trunk_busd_lp'].price
     # Daily Bertha Support ---------------------------------------------------------------------
     average_ele_price = bsc.get_ave_ele(em_data['ele_busd_lp'], em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
     daily_bertha_support_usd = em_data['bertha'] * average_ele_price * model_setup['bertha_outflows']
@@ -176,6 +183,25 @@ for run in range(int(model_setup['run_days'])):
                                                           em_data['bnb'].usd_value)  # sell ELEPHANT
         em_data['futures_busd_pool'] -= futures_claimed  # payout claims
 
+    # ------ Process Stampede Stakes ------
+    # For now, assume 10% claim, 40% wait, 50% compound
+    i = 0
+    trunk_claimed = 0
+    total_stakes = len(stampede)
+    for stake in stampede:
+        i += 1
+        stake.pass_days(1, stp_rate)
+        if i < 0.1 * total_stakes:
+            trunk_yield += stake.claim()  # All claims will add to the days "trunk yield"
+        elif 0.1 * total_stakes <= i < 0.5 * total_stakes:
+            pass  # let rewards accrue
+        elif 0.5 <= i <= total_stakes:
+            if stake.available >= 500:  # Deposit only if available has built up to 500 trunk, else wait
+                dep = em_data['trunk_busd_lp'].update_lp('busd', 200 * em_data['trunk_busd_lp'].price)
+                stake.deposit(dep)
+        else:
+            print('Missed a STAKE!')
+
     # TODO: Good until Here!
 
     # Handle Yield and Sales/Redemptions (all in Trunk) ----------------------------------------------------------------
@@ -209,8 +235,7 @@ for run in range(int(model_setup['run_days'])):
     # ------ Update balances based on unsold yield ------
     # --- Buys off PCS - included here so that it can use the same deposit ratios defined
     # Once Peg is hit, this is the same as minting
-    em_data['trunk_busd_lp'].update_lp('BUSD', model_setup['buy_trunk_pcs'][model_setup['day']])  # purchase trunk
-    daily_yield += em_data['trunk_busd_lp'].tokens_removed
+    daily_yield += em_data['trunk_busd_lp'].update_lp('BUSD', model_setup['buy_trunk_pcs'][model_setup['day']])  # purchase trunk
     # --- Farmer's Depot ---
     em_data['farmers_depot'].pass_days(1)  # Update depot by 1 day
     depot_claim = em_data['farmers_depot'].claim()

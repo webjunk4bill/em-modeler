@@ -403,6 +403,7 @@ class YieldEngineV6:
         self.taxes_paid = 0
         self.days_since_action = 0
         self.total_days = 0
+        self.last_action = 'deposit'
 
     def pass_days(self, days, rate=0.005):
         """
@@ -424,6 +425,7 @@ class YieldEngineV6:
         """
         Perform a claim of the available balance
         """
+        self.last_action = 'claim'
         claimed = self.available
         self.claimed += claimed  # Update balances prior to paying tax
         if self.balance >= claimed:
@@ -439,6 +441,7 @@ class YieldEngineV6:
         """
         Perform a new deposit
         """
+        self.last_action = 'deposit'
         if self.balance > self.max_balance:
             pass
         else:
