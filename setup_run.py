@@ -63,12 +63,12 @@ def setup_run(end_date, bnb_price):
 
     # Kept Yield Behavior (needs to add up to 100%) - takes place after the sales % in "yield_sales"
     # Set these values for a fully running system.  Will be modified based on Trunk price during recovery.
-    model_setup['yield_to_hold'] = 0.01
-    model_setup['yield_to_stake'] = 0.49
-    model_setup['yield_to_farm'] = 0.3
-    model_setup['yield_to_bond'] = 0.2
-    if model_setup['yield_to_hold'] + model_setup['yield_to_stake'] + \
-            model_setup['yield_to_farm'] + model_setup['yield_to_bond'] != 1:
+    model_setup['yield_to_trumpet'] = 0.8
+    model_setup['yield_to_hold'] = 0.2
+    model_setup['yield_to_farm'] = 0
+    model_setup['yield_to_bond'] = 0
+    if model_setup['yield_to_trumpet'] + model_setup['yield_to_farm'] + \
+            model_setup['yield_to_bond'] + model_setup['yield_to_hold'] != 1:
         raise Exception("Yield behavior must add to 100%")
 
     # Get Time info
@@ -105,10 +105,10 @@ def setup_run(end_date, bnb_price):
     '''
 
     # ------ Set up BNB Growth ------
-    bnb_price_movement = [bnb_price, 350, 400, 500, 600]  # This will be split over the run period.
+    bnb_price_movement = [bnb_price, 300]  # This will be split over the run period.
     bnb_sparse_range = pd.interval_range(model_setup['day'], end_date, len(bnb_price_movement)).left
     temp_bnb_s = pd.Series(bnb_price_movement, index=bnb_sparse_range)
-    temp_bnb_s[end_date] = 650  # final BNB price
+    temp_bnb_s[end_date] = 350  # final BNB price
     model_setup['bnb_price_s'] = pd.Series(temp_bnb_s, index=full_range).interpolate()  # get a daily price increase
 
     # --- EM Growth ---

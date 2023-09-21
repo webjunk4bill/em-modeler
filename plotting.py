@@ -44,53 +44,56 @@ def em_plot_funds(em_df):
 
 
 def em_plot_time(em_df):
-    em_df['daily_debt_ratio'] = np.multiply((em_df['daily_debt_ratio']), 100)  # for better plotting
+    # em_df['daily_debt_ratio'] = np.multiply((em_df['daily_debt_ratio']), 100)  # for better plotting
     em_df['asset_debt_ratio'] = np.multiply(np.divide(em_df['$em_assets/m'], em_df['$liquid_debt/m']), 100)
 
     fig1, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=2)
     em_df[['$bertha/m',
-           '$liquid_debt/m',
-           '$funds_in/m']].plot(ax=axes[0, 0], ylabel='$USD (millions)',
-                                title='Treasury, Debt, and Incoming Funds', sharex=False, sharey=False, grid=True)
-    em_df[['$bertha_payouts/m',
-           '$daily_yield/m']].plot(ax=axes[1, 0], ylabel='$USD (millions)',
-                                   title='Earned Yield and Bertha Payouts', sharex=False, sharey=False, grid=True)
-    em_df['$elephant/m'].plot(ax=axes[0, 1], ylabel='$USD (ele/m)', title='Elephant Price (per million)',
-                              sharex=False, sharey=False, grid=True)
-    em_df['$trunk'].plot(ax=axes[1, 1], ylabel='$USD', title='Trunk Price',
-                         sharex=False, sharey=False, grid=True)
-
+           '$liquid_debt/m']].plot(ax=axes[0, 0], ylabel='$USD (millions)',
+                                   title='Treasury Value and Liquid Debt', sharex=False, sharey=False, grid=True)
+    em_df[['$funds_in/m', '$funds_out/m']].plot(ax=axes[1, 0], ylabel='$USD (millions)',
+                                                title='Elephant Money total funds in/out', sharex=False, sharey=False,
+                                                grid=True)
+    em_df['$BNB'].plot(ax=axes[0, 1], ylabel='$USD', title="BNB Price",
+                       sharex=False, sharey=False, grid=True)
+    em_df[['$elephant/m', '$trunk', 'trumpet']].plot(ax=axes[1, 1], ylabel='$USD', title='Token Price',
+                                                     sharex=False, sharey=False, grid=True)
+    plt.tight_layout()
     plt.show()
     fig1.savefig('outputs/fig1_{0}.png'.format(dt.datetime.today()))
 
     fig2, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=2)
-    em_df[['$em_assets/m',
-           '$liquid_debt/m']].plot(ax=axes[0, 0], ylabel='$USD (millions)',
-                                   title='EM Assets and Current Liabilities', sharex=False, sharey=False, grid=True)
-    em_df['$em_liquidity'].plot(ax=axes[0, 1], ylabel='$USD', title='Elephant Money Liquidity (income v yield)',
-                                sharex=False, sharey=False, grid=True)
-    em_df['asset_debt_ratio'].plot(ax=axes[1, 0], ylabel='% Assets/Debts',
-                                   title='EM Total Assets to Debt', sharex=False, sharey=False, grid=True)
-    em_df['daily_debt_ratio'].plot(ax=axes[1, 1], ylabel='% Serviceable Yields',
-                                   title='% of Yield Covered by Bertha APRs',
-                                   sharex=False, sharey=False, grid=True)
+    em_df[['%em_asset_growth']].plot(ax=axes[0, 0], ylabel='% Growth',
+                                     title='EM Asset Growth Percentage', sharex=False, sharey=False, grid=True)
+    em_df['$em_cashflow'].plot(ax=axes[0, 1], ylabel='$USD', title='Elephant Money Cashflow',
+                               sharex=False, sharey=False, grid=True)
+    em_df['%total_debt_ratio'].plot(ax=axes[1, 0], ylabel='%',
+                                    title='EM Treasury to Total Debt Ratio', sharex=False, sharey=False, grid=True)
+    em_df['%liquid_debt_ratio'].plot(ax=axes[1, 1], ylabel='% Serviceable Yields',
+                                     title='EM Treasury to Liquid Debt Ratio',
+                                     sharex=False, sharey=False, grid=True)
+    plt.tight_layout()
     plt.show()
     fig2.savefig('outputs/fig2_{0}.png'.format(dt.datetime.today()))
 
     fig3, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=3)
-    em_df['stampede_accumulating_yield/m'].plot(ax=axes[1, 2], ylabel='Trunk', title='Accumulating Yield',
-                                                sharex=False, sharey=False, grid=True)
-    em_df['stampede_owed/m'].plot(ax=axes[0, 1], ylabel='Trunk (millions)', title='Stampede Remaining Obligations',
+    em_df['futures_owed/m'].plot(ax=axes[0, 0], ylabel='$millions', title='Futures TVL',
+                                 sharex=False, sharey=False, grid=True)
+    em_df['stampede_owed/m'].plot(ax=axes[0, 1], ylabel='Trunk (millions)', title='Stampede TVL (Trunk)',
                                   sharex=False, sharey=False, grid=True)
-    em_df['staking_balance/m'].plot(ax=axes[1, 0], ylabel='Trunk (millions)', title='Staking Balance', grid=True)
-    em_df['trunk_wallets/m'].plot(ax=axes[1, 1], ylabel='Trunk (millions)', title='Trunk Held in Wallets', grid=True)
-    em_df['farm_tvl/m'].plot(ax=axes[0, 2], title='EM Farms TVL', ylabel='Trunk (millions)', grid=True)
-    em_df['queue_wait'].plot(ax=axes[0, 0], ylabel='Days', title='Redemption Queue Payout Wait',
+    em_df['trunk_liquid_debt/m'].plot(ax=axes[0, 2], ylabel='Trunk (millions)', title='Trunk Liquid Debt',
+                                      grid=True)
+    em_df['$trunk'].plot(ax=axes[1, 1], ylabel='$USD', title='Trunk Price', grid=True)
+    em_df['futures_liquid_debt/m'].plot(ax=axes[1, 0],
+                                        title='Futures Liquid Debt', ylabel='$millions', grid=True)
+    em_df['queue_wait'].plot(ax=axes[1, 2], ylabel='Days', title='Redemption Queue Payout Wait',
                              sharex=False, sharey=False, grid=True)
-
+    plt.tight_layout()
     plt.show()
     fig3.savefig('outputs/fig3_{0}.png'.format(dt.datetime.today()))
 
+
+'''
     fig4, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=2)
     em_df['bertha/T'].plot(ax=axes[0, 0], ylabel='Trillion Tokens', title='Bertha Size (Trillion Tokens)',
                            sharex=False, sharey=False, grid=True)
@@ -102,7 +105,7 @@ def em_plot_time(em_df):
 
     plt.show()
     fig4.savefig('outputs/fig4_{0}.png'.format(dt.datetime.today()))
-
+'''
 # df = pd.read_csv('outputs/output_time.csv', index_col=0, parse_dates=True)
 # df = pd.read_csv('outputs/output_funds.csv', index_col=0)
 # em_plot_time(df)

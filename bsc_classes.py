@@ -404,10 +404,20 @@ class YieldEngineV6:
         self.days_since_action = 0
         self.total_days = 0
         self.last_action = 'deposit'
+        self._debt_burden = None
+        self._payout_remaining = None
+
+    @property
+    def payout_remaining(self):
+        return self.max_payout - self.claimed
+
+    @property
+    def debt_burden(self):
+        return min(self.balance, self.payout_remaining)
 
     def pass_days(self, days, rate=0.005):
         """
-        Update the available balances based on number of days passed
+        Update the available balances based on number of days passed and check all limits
         """
         if self.claimed > self.max_payout:  # Wallet is done
             pass
@@ -415,11 +425,12 @@ class YieldEngineV6:
         self.daily_payout = self.balance * self.rate * self.rate_limiter
         self.days_since_action += days
         self.total_days += days
-        self.available = self.daily_payout * self.days_since_action
-        if self.available >= self.balance:  # Available can't exceed balance
-            self.available = self.balance
-        if self.available > self.max_available:  # Available can't exceed max available
-            self.available = self.max_available
+        self.available = min(
+            self.daily_payout * self.days_since_action,
+            self.payout_remaining,  # Can't exceed max payout
+            self.balance,  # Can't exceed balance
+            self.max_available  # Can't exceed max available
+        )
 
     def claim(self):
         """
@@ -427,7 +438,7 @@ class YieldEngineV6:
         """
         self.last_action = 'claim'
         claimed = self.available
-        self.claimed += claimed  # Update balances prior to paying tax
+        self.claimed += claimed
         if self.balance >= claimed:
             self.balance -= claimed
         else:
@@ -447,6 +458,8 @@ class YieldEngineV6:
         else:
             self.compounds += self.available  # Track how much has been compounded
             self.balance += deposit + self.available
+            if self.balance > self.max_balance:
+                self.balance = self.max_balance
             self.available = 0
             self.days_since_action = 0
             self.deposits += deposit
@@ -466,7 +479,6 @@ class YieldEngineV6:
             self.rate_limiter = 0.65
         elif self.compounds >= 1000000:
             self.rate_limiter = 0.5
-        self.daily_payout = self.balance * self.rate
 
 
 class Trumpet:
