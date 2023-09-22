@@ -76,33 +76,6 @@ def setup_run(end_date, bnb_price):
     days_temp = end_date - model_setup['day']
     model_setup['run_days'] = days_temp.days
     full_range = pd.date_range(model_setup['day'], end_date, freq="D")
-    '''
-    # Setup Stampede
-    schedule = ['roll', 'claim', 'hold']
-    cycles = round(model_setup['run_days'] / len(schedule)) + 1
-    model_setup['roll_claim'] = []
-    i = 1
-    while i <= cycles:  # Create full schedule for rolls and claims
-        for j in schedule:
-            model_setup['roll_claim'].append(j)
-        i += 1
-
-    # ------ Set up Futures Behavior ------
-    schedule = ['dep', 'dep', 'claim']
-    
-    first_claim = 90  # Days before first claim, then follow schedule
-    cycles = round((model_setup['run_days'] - first_claim) / model_setup['futures_interval']) + 1
-    model_setup['futures_action'] = []
-    i = 1
-    while i <= round(first_claim / model_setup['futures_interval']) + 1:  # Fill the intervals before first claim
-        model_setup['futures_action'].append('dep')
-        i += 1
-    i = 1
-    while i <= cycles:  # Fill the remainder cycles
-        for j in schedule:
-            model_setup['futures_action'].append(j)
-        i += 1
-    '''
 
     # ------ Set up BNB Growth ------
     bnb_price_movement = [bnb_price, 300]  # This will be split over the run period.
