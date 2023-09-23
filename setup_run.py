@@ -24,38 +24,41 @@ def setup_run(end_date, bnb_price):
                    'day': pd.Timestamp(date.today())
                    }
     model_setup['bertha_outflows'] = model_setup['trunk_support_apr'] + model_setup['redemption_support_apr'] + \
-        model_setup['nft_royalty_apr'] + model_setup['performance_support_apr']
+                                     model_setup['nft_royalty_apr'] + model_setup['performance_support_apr']
 
     # Incoming Funds
     # These are starting values.  They can be adjusted during the run as needed (FOMO, etc.)
-    # Get data from Dune dashboards (Governance, LP Detailed)
-    bwb_taxes = 1.7E12 / 30
-    buyback_volume = 5.5E12 / 30
-    avg_ele_usd = 0.000000386
-    sell_volume = 50000
-    buy_trunk_pcs = 0  # Trunk buys off PCS.  Assume goes to wallets for arbitrages, swing trading
-    bwb_volume = bwb_taxes / 0.08 * avg_ele_usd  # Bertha collects 8% tax
-    model_setup['nft_mints'] = 18  # average daily
-    model_setup['nft_market_sells'] = 25  # average daily
-    # Futures, estimated based off data 01Sept to 15Sept, 2023:
-    futures = {'f_new_wallets': 10,
-               'f_new_deposit_usd': 4700,
-               'f_compounds': 90,
+    # Get data from Dune dashboards (Governance sheet) and LP
+    ele_treasury_in_usd = 2.7E6 / 30  # Total 30d in from governance page
+    # Use %-ages from the governance page
+    nft_mint_volume = 45.6 / 100 * ele_treasury_in_usd
+    nft_sell_taxes = 0.08 / 100 * ele_treasury_in_usd
+    buyback = 39.1 / 100 * ele_treasury_in_usd
+    bwb_taxes = 14.6 / 100 * ele_treasury_in_usd
+    # Get Buy / Sell Volume from LP page.  Need to export to CSV and average to get 30d average
+    avg_nb_buy_volume = 356700 - buyback - nft_mint_volume  # "non-Bertha" buy volume since traced separately
+    avg_sell_volume = 76000
+    buy_sell_ratio = avg_nb_buy_volume / (avg_sell_volume + avg_nb_buy_volume)
+    bwb_volume = bwb_taxes / 0.08 * buy_sell_ratio  # Bertha collects 8% tax
+    swb_volume = bwb_taxes / 0.08 * (1 - buy_sell_ratio)
+    market_buy_volume = avg_nb_buy_volume - bwb_volume
+    market_sell_volume = avg_sell_volume - swb_volume
+    buy_trunk_pcs = 15000  # Trunk buys off PCS.  Assume goes to wallets for arbitrages, swing trading
+    # Futures, estimated based off new wallets and busd_treasury inflows
+    # This doesn't always match buyback due to the trailing nature of only using 50% of the busd treasury for buybacks
+    busd_treasury_in = 1.8E6 / 30
+    new_wallets = int(67 / 7)
+    new_deposit = busd_treasury_in / new_wallets
+    futures = {'f_compounds': 90,
                'f_compound_usd': 200,
-               'f_claims': 53,
                'f_claims_usd': 300,
                'f_days_running': 237
                }
-    buy_futures = futures['f_new_wallets'] * futures['f_new_deposit_usd'] + \
-        futures['f_compound_usd'] * futures['f_compounds']
     model_setup['f_claim_wait'] = 120
     model_setup = {**model_setup, **futures}
     buy_depot = 0
 
     # Platform Sales
-    model_setup['sell_volume'] = sell_volume  # Percentage of BwB volume
-    # ele_market_buy = 0
-    # ele_market_sell = 0
     model_setup['peg_trunk'] = False  # This will over-ride the amount of sales in order to keep Trunk near $1
     model_setup['yield_sales'] = 0.75  # % of daily available yield to sell (at PEG)
     # Maximum % of trunk held to be sold in a day only *if* the platform can support it.
@@ -86,24 +89,29 @@ def setup_run(end_date, bnb_price):
 
     # --- EM Growth ---
     # BwB
-    ele_buy_multiplier = [1, 1]
+    ele_buy_multiplier = [1]
     ele_sparse_range = pd.interval_range(model_setup['day'], end_date, len(ele_buy_multiplier)).left
     temp_ele_s = pd.Series(ele_buy_multiplier, index=ele_sparse_range)
     temp_ele_s[end_date] = 1
     temp_ele_full = pd.Series(temp_ele_s, index=full_range).interpolate()
-    model_setup['buy_volume'] = np.multiply(temp_ele_full, bwb_volume)  # This in $USD
+    model_setup['bwb_volume'] = np.multiply(temp_ele_full, bwb_volume)  # This in $USD
+    model_setup['swb_volume'] = np.multiply(temp_ele_full, swb_volume)
+    model_setup['market_buy_volume'] = np.multiply(temp_ele_full, market_buy_volume)
+    model_setup['market_sell_volume'] = np.multiply(temp_ele_full, market_sell_volume)
 
     # Other Income
-    income_multiplier = [1, 1]
+    income_multiplier = [1]
     inc_sparse_range = pd.interval_range(model_setup['day'], end_date, len(income_multiplier)).left
     temp_income_s = pd.Series(income_multiplier, index=inc_sparse_range)
     temp_income_s[end_date] = 1
     temp_income_full = pd.Series(temp_income_s, index=full_range).interpolate()
+    model_setup['nft_mint_volume'] = np.multiply(temp_income_full, nft_mint_volume)
+    model_setup['nft_sales_revenue'] = np.multiply(temp_income_full, nft_sell_taxes)
     model_setup['buy_trunk_pcs'] = np.multiply(temp_income_full, buy_trunk_pcs)
     model_setup['buy_depot'] = np.multiply(temp_income_full, buy_depot)
-    model_setup['buy_futures'] = np.multiply(temp_income_full, buy_futures)
+    model_setup['f_new_wallets'] = np.multiply(temp_income_full, new_wallets)
+    model_setup['f_new_deposit'] = np.multiply(temp_income_full, new_deposit)
 
     return model_setup
-
 
 # setup_run("2024-12-31", 310)

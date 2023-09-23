@@ -120,6 +120,12 @@ class CakeLP:
 
         return self.tokens_removed
 
+    def add_liquidity(self, t_name1, amt1, t_name2, amt2):
+        self.token_bal[t_name1] += amt1
+        self.token_bal[t_name2] += amt2
+        self.const_prod = self.token_bal[t_name1] * self.token_bal[t_name2]
+        self.price = self.get_price()
+
 
 class GetWalletBalance:
     def __init__(self, addr, token_addr):

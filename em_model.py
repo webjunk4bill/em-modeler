@@ -84,40 +84,66 @@ for run in range(int(model_setup['run_days'])):
     em_data['busd_treasury'] += depot_buy_usd  # funds go to busd treasury
     '''
     # --- new Futures stakes ---
-    # TODO: Add a good way to enable growth in futures
-    for _ in range(model_setup['f_new_wallets']):
-        em_data['futures_busd_pool'] += model_setup['f_new_deposit_usd'] * 0.1
-        em_data['busd_treasury'] += model_setup['f_new_deposit_usd'] * 0.9
-        futures.append(bsc.YieldEngineV6(model_setup['f_new_deposit_usd'], 0.005))  # create new stake
-        em_income += model_setup['f_new_deposit_usd']
+    wallets = int(model_setup['f_new_wallets'][model_setup['day']])
+    deposit = model_setup['f_new_deposit'][model_setup['day']]
+    for _ in range(wallets):
+        em_data['futures_busd_pool'] += deposit * 0.1
+        em_data['busd_treasury'] += deposit * 0.9
+        futures.append(bsc.YieldEngineV6(deposit, 0.005))  # create new stake
+        em_income += deposit
     # --- NFT Mints ---
-    mint_funds = em_data['nft'].mint_and_get_usd(model_setup['nft_mints'], begin_bnb_price)
+    mint_funds = model_setup['nft_mint_volume'][model_setup['day']]
+    mint_price = em_data['nft'].price
+    em_data['nft'].mint(int(mint_funds / (mint_price * begin_bnb_price)))
     em_income += mint_funds
     ele_bought = bsc.elephant_buy(mint_funds, em_data['ele_busd_lp'], em_data['ele_bnb_lp'], begin_bnb_price)
     em_data['bertha'] += ele_bought  # bertha gets full amount of mint volume
     # --- NFT Marketplace Sales ---
     # Market sells are 90% of the current mint price and Bertha gets a 30% cut of that
-    sell_funds = em_data['nft'].price * begin_bnb_price * model_setup['nft_market_sells'] * 0.9 * 0.3
+    sell_funds = model_setup['nft_sales_revenue'][model_setup['day']]
     em_income += sell_funds
     ele_bought = bsc.elephant_buy(sell_funds, em_data['ele_busd_lp'], em_data['ele_bnb_lp'], begin_bnb_price)
     em_data['bertha'] += ele_bought  # bertha gets full amount of mint volume
 
     # Handle Elephant Buy/Sell ---------------------------------------------------------------------
     # ------ BwB ------
-    ele_bought = bsc.elephant_buy(model_setup['buy_volume'][model_setup['day']], em_data['ele_busd_lp'],
+    ele_bought = bsc.elephant_buy(model_setup['bwb_volume'][model_setup['day']], em_data['ele_busd_lp'],
                                   em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
-    em_income = model_setup['buy_volume'][model_setup['day']]
+    em_income += model_setup['bwb_volume'][model_setup['day']]
     em_data['bertha'] += ele_bought * 0.08  # 8% tax to Bertha
     # ------ SwB ------
-    ele_sold = model_setup['sell_volume'] / average_ele_price
+    ele_sold = model_setup['swb_volume'][model_setup['day']] / average_ele_price
+    em_data['elephant_wallets'] += ele_bought - ele_sold
     # 92% of Elephant sold goes to LP, 8% to Bertha
-    busd_removed = bsc.elephant_sell(ele_sold * 0.92, em_data['ele_busd_lp'], em_data['ele_bnb_lp'],
-                                     em_data['bnb'].usd_value)
+    bsc.elephant_sell(ele_sold * 0.92, em_data['ele_busd_lp'], em_data['ele_bnb_lp'],
+                      em_data['bnb'].usd_value)
     em_data['bertha'] += ele_sold * 0.08
-    # TODO: Elephant Market Buy
-    # TODO: Elephant Market Sell
+    em_income += model_setup['swb_volume'][model_setup['day']] * 0.08
+    average_ele_price = bsc.get_ave_ele(em_data['ele_busd_lp'], em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
+    # TODO: Create class for Elephant containing LPs and automatically keeping the price up to date
+    # ------ Market Buys / Sells ------
+    tax_ele = 0
+    buys_usd = model_setup['market_buy_volume'][model_setup['day']]
+    sells_ele = model_setup['market_sell_volume'][model_setup['day']] / average_ele_price
+    tax_ele += sells_ele * 0.1
+    buys_ele = bsc.elephant_buy(buys_usd, em_data['ele_busd_lp'], em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
+    tax_ele += buys_ele * 0.1
+    sells_usd = bsc.elephant_sell(sells_ele, em_data['ele_busd_lp'], em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
+    em_data['elephant_wallets'] += buys_ele - sells_ele
+    tax_usd = tax_ele * em_data['ele_busd_lp'].price
+    # Add liquidity to BUSD pool TODO: Confirm whether BUSD or BNB pool
+    em_data['ele_busd_lp'].add_liquidity('ELEPHANT', tax_ele / 2, 'BUSD', tax_usd / 2)
+    # Handle major reflections
+    em_data['graveyard'] += tax_ele / 2 * (em_data['graveyard'] / 1E15)
+    em_data['bertha'] += tax_ele / 2 * (em_data['bertha'] / 1E15)
+    em_data['elephant_wallets'] += tax_ele / 2 * (em_data['elephant_wallets'] / 1E15)
 
     # Handle Governance ---------------------------------------------------------------------
+    # ------ Graveyard Rebalance ------
+    if em_data['graveyard'] >= 510E12:
+        em_data['graveyard'] -= 10E12
+        busd = bsc.elephant_sell(5E12, em_data['ele_busd_lp'], em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
+        em_data['ele_busd_lp'].add_liquidity('ELEPHANT', 5E12, 'BUSD', busd)
     # ------ Elephant Buyback (for Bertha) ------
     buyback_funds = em_data['busd_treasury'] * model_setup['elephant_buyback_apr']  # In USD
     em_data['busd_treasury'] -= buyback_funds  # Remove funds
@@ -170,7 +196,7 @@ for run in range(int(model_setup['run_days'])):
         if stake.total_days < model_setup['f_claim_wait']:  # stake too new, pass
             futures_available += stake.available
             futures_tvl += stake.debt_burden
-        elif rand == 1:
+        elif rand == 1 or stake.balance >= 0.9 * stake.max_balance:
             futures_claimed += stake.claim()
             futures_tvl += stake.debt_burden
         elif rand == 2 or rand == 3:
@@ -204,7 +230,7 @@ for run in range(int(model_setup['run_days'])):
         wait_days = 18 / min(1, (1 - em_data['trunk_busd_lp'].price) / 2)
         rand = random.randint(1, wait_days + 3)
         stake.pass_days(1, stp_rate)
-        if rand == 1:
+        if rand == 1 or stake.balance >= 0.9 * stake.max_balance:
             trunk_yield += stake.claim()  # All claims will add to the days "trunk yield"
             trunk_tvl += stake.debt_burden
         elif rand == 2 or rand == 3:
