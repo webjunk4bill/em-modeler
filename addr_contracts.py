@@ -12,6 +12,7 @@ busd_buffer_pool = "0xd9dE89efB084FfF7900Eac23F2A991894500Ec3E"
 trumpet_contract = "0x574a691D05EeE825299024b2dE584B208647e073"
 nft_contract = "0xb92afeDC8f8618BE4198fbE5d97adB7C60aB3198"
 nft_stake_contract = "0xB2b1D88AA427C2E1849e6D9Ab2169d57f91C4Fb3"
+deployer_contract = "0x16E76819aC1f0dfBECc48dFE93B198830e0C85EB"
 
 elephant_farms_max_apr = 1.25
 elephant_stampede_max_apr = 2.05

@@ -529,3 +529,48 @@ class Unlimited:
             usd_value += self.price * bnb_price
             self.supply += 1
         return usd_value
+
+
+class EMCashflow:
+    """Helper class to keep track of EM DAILY inflows and outflows better"""
+
+    def __init__(self):
+        self.in_futures = 0
+        self.in_nft = 0
+        self.in_taxes = 0
+        self.in_trunk = 0
+        self.in_buy_volume = 0
+        self._in_total = None
+        self.out_futures = 0
+        self.out_nft = 0
+        self.out_trunk = 0
+        self.out_perf = 0
+        self.out_sell_volume = 0
+        self._out_total = None
+        self._cashflow = None
+
+    @property
+    def in_total(self):
+        return self.in_trunk + self.in_nft + self.in_taxes + self.in_futures + self.in_buy_volume
+
+    @property
+    def out_total(self):
+        return self.out_nft + self.out_perf + self.out_futures + self.out_trunk + self.out_sell_volume
+
+    @property
+    def cashflow(self):
+        return self.in_total - self.out_total
+
+    def get_results(self):
+        return {
+            "in_futures": self.in_futures,
+            "in_nft": self.in_nft,
+            "in_taxes": self.in_taxes,
+            "in_trunk": self.in_trunk,
+            "buy_volume": self.in_buy_volume,
+            "out_futures": self.out_futures,
+            "out_nft": self.out_nft,
+            "out_perf": self.out_perf,
+            "out_trunk": self.out_trunk,
+            "sell_volume": self.out_sell_volume
+        }
