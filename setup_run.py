@@ -81,10 +81,10 @@ def setup_run(end_date, bnb_price):
     full_range = pd.date_range(model_setup['day'], end_date, freq="D")
 
     # ------ Set up BNB Growth ------
-    bnb_price_movement = [bnb_price, 300]  # This will be split over the run period.
+    bnb_price_movement = [bnb_price, 265]  # This will be split over the run period.
     bnb_sparse_range = pd.interval_range(model_setup['day'], end_date, len(bnb_price_movement)).left
     temp_bnb_s = pd.Series(bnb_price_movement, index=bnb_sparse_range)
-    temp_bnb_s[end_date] = 350  # final BNB price
+    temp_bnb_s[end_date] = 300  # final BNB price
     model_setup['bnb_price_s'] = pd.Series(temp_bnb_s, index=full_range).interpolate()  # get a daily price increase
 
     # --- EM Growth ---
