@@ -46,7 +46,7 @@ def em_plot_funds(em_df):
 def em_plot_time(em_df):
     # em_df['daily_debt_ratio'] = np.multiply((em_df['daily_debt_ratio']), 100)  # for better plotting
     em_df['asset_debt_ratio'] = np.multiply(np.divide(em_df['$em_assets/m'], em_df['$liquid_debt/m']), 100)
-
+    # --- Overview
     fig1, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=2)
     em_df[['$bertha/m',
            '$liquid_debt/m']].plot(ax=axes[0, 0], ylabel='$USD (millions)',
@@ -62,9 +62,10 @@ def em_plot_time(em_df):
     plt.show()
     fig1.savefig('outputs/fig1_{0}.png'.format(dt.datetime.today()))
 
+    # --- cashflow
     fig2, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=2)
-    em_df[['%em_asset_growth']].plot(ax=axes[0, 0], ylabel='% Growth',
-                                     title='EM Asset Growth Percentage', sharex=False, sharey=False, grid=True)
+    em_df[['$em_market_cap/m']].plot(ax=axes[0, 0], ylabel='$ millions',
+                                     title='EM Market Cap', sharex=False, sharey=False, grid=True)
     em_df['$em_cashflow'].plot(ax=axes[0, 1], ylabel='$USD', title='Elephant Money Cashflow',
                                sharex=False, sharey=False, grid=True)
     em_df['%total_debt_ratio'].plot(ax=axes[1, 0], ylabel='%',
@@ -76,6 +77,7 @@ def em_plot_time(em_df):
     plt.show()
     fig2.savefig('outputs/fig2_{0}.png'.format(dt.datetime.today()))
 
+    # debts
     fig3, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=3)
     em_df['futures_owed/m'].plot(ax=axes[0, 0], ylabel='$millions', title='Futures TVL',
                                  sharex=False, sharey=False, grid=True)
@@ -91,6 +93,25 @@ def em_plot_time(em_df):
     plt.tight_layout()
     plt.show()
     fig3.savefig('outputs/fig3_{0}.png'.format(dt.datetime.today()))
+
+    # --- Daily in/out detail
+    fig4, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=3)
+    em_df[['in_futures', 'out_futures']].plot(ax=axes[0, 0], ylabel='$USD', title='Daily Futures In/Out',
+                                              sharex=False, sharey=False, grid=True)
+    em_df[['in_nft', 'out_nft']].plot(ax=axes[0, 1], ylabel='$USD', title='Daily NFTs In/Out',
+                                      sharex=False, sharey=False, grid=True)
+    em_df[['in_trunk', 'out_trunk']].plot(ax=axes[0, 2], ylabel='$USD', title='Daily Trunk In/Out (support)',
+                                          sharex=False, sharey=False, grid=True)
+    em_df[['in_taxes']].plot(ax=axes[1, 1], ylabel='$USD', title='Daily Taxes Collected',
+                             sharex=False, sharey=False, grid=True)
+    em_df[['buy_volume', 'sell_volume']].plot(ax=axes[1, 0], ylabel='$USD', title='Daily Buy/Sell Volume',
+                                              sharex=False, sharey=False, grid=True)
+    em_df[['out_perf']].plot(ax=axes[1, 2], ylabel='$USD', title='Daily Performance Fund',
+                             sharex=False, sharey=False, grid=True)
+
+    plt.tight_layout()
+    plt.show()
+    fig4.savefig('outputs/fig4_{0}.png'.format(dt.datetime.today()))
 
 
 '''

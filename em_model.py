@@ -76,7 +76,7 @@ for run in range(int(model_setup['run_days'])):
     # Incoming Funds ---------------------------------------------------------------------
     # --- Farmer's Depot ---
     '''
-    depot_buy_usd = model_setup['buy_depot'][model_setup['day']]  # Don't want to directly modify the starting value
+    depot_buy_usd = model_setup['buy_depot'][today]  # Don't want to directly modify the starting value
     if em_data['trunk_busd_lp'].price < 0.98:  # 10% of funds auto purchase market Trunk if below $0.98
         em_data['trunk_treasury'] += em_data['trunk_busd_lp'].update_lp('BUSD', depot_buy_usd * 0.1)
         depot_buy_usd *= 0.9
@@ -85,15 +85,15 @@ for run in range(int(model_setup['run_days'])):
     em_data['busd_treasury'] += depot_buy_usd  # funds go to busd treasury
     '''
     # --- new Futures stakes ---
-    wallets = int(model_setup['f_new_wallets'][model_setup['day']])
-    deposit = model_setup['f_new_deposit'][model_setup['day']]
+    wallets = int(model_setup['f_new_wallets'][today])
+    deposit = model_setup['f_new_deposit'][today]
     for _ in range(wallets):
         em_data['futures_busd_pool'] += deposit * 0.1
         em_data['busd_treasury'] += deposit * 0.9
         futures.append(bsc.YieldEngineV6(deposit, 0.005))  # create new stake
         em_cashflow.in_futures += deposit
     # --- NFT Mints ---
-    mint_funds = model_setup['nft_mint_volume'][model_setup['day']]
+    mint_funds = model_setup['nft_mint_volume'][today]
     mint_price = em_data['nft'].price
     em_data['nft'].mint(int(mint_funds / (mint_price * begin_bnb_price)))
     em_cashflow.in_nft += mint_funds
@@ -101,34 +101,34 @@ for run in range(int(model_setup['run_days'])):
     em_data['bertha'] += ele_bought  # bertha gets full amount of mint volume
     # --- NFT Marketplace Sales ---
     # Market sells are 90% of the current mint price and Bertha gets a 30% cut of that
-    sell_funds = model_setup['nft_sales_revenue'][model_setup['day']]
+    sell_funds = model_setup['nft_sales_revenue'][today]
     em_cashflow.in_nft += sell_funds
     ele_bought = bsc.elephant_buy(sell_funds, em_data['ele_busd_lp'], em_data['ele_bnb_lp'], begin_bnb_price)
     em_data['bertha'] += ele_bought  # bertha gets full amount of mint volume
 
     # Handle Elephant Buy/Sell ---------------------------------------------------------------------
     # ------ BwB ------
-    ele_bought = bsc.elephant_buy(model_setup['bwb_volume'][model_setup['day']], em_data['ele_busd_lp'],
+    ele_bought = bsc.elephant_buy(model_setup['bwb_volume'][today], em_data['ele_busd_lp'],
                                   em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
-    em_cashflow.in_buy_volume += model_setup['bwb_volume'][model_setup['day']]
-    em_cashflow.in_taxes += model_setup['bwb_volume'][model_setup['day']] * 0.08
+    em_cashflow.in_buy_volume += model_setup['bwb_volume'][today]
+    em_cashflow.in_taxes += model_setup['bwb_volume'][today] * 0.08
     em_data['bertha'] += ele_bought * 0.08  # 8% tax to Bertha
     # ------ SwB ------
-    ele_sold = model_setup['swb_volume'][model_setup['day']] / average_ele_price
+    ele_sold = model_setup['swb_volume'][today] / average_ele_price
     em_data['elephant_wallets'] += ele_bought - ele_sold
     # 92% of Elephant sold goes to LP, 8% to Bertha
     bsc.elephant_sell(ele_sold * 0.92, em_data['ele_busd_lp'], em_data['ele_bnb_lp'],
                       em_data['bnb'].usd_value)
     em_data['bertha'] += ele_sold * 0.08
-    em_cashflow.in_taxes += model_setup['swb_volume'][model_setup['day']] * 0.08
-    em_cashflow.out_sell_volume = model_setup['swb_volume'][model_setup['day']]
+    em_cashflow.in_taxes += model_setup['swb_volume'][today] * 0.08
+    em_cashflow.out_sell_volume = model_setup['swb_volume'][today]
     average_ele_price = bsc.get_ave_ele(em_data['ele_busd_lp'], em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
     # TODO: Create class for Elephant containing LPs and automatically keeping the price up to date
     # ------ Market Buys / Sells ------
     tax_ele = 0
-    buys_usd = model_setup['market_buy_volume'][model_setup['day']]
+    buys_usd = model_setup['market_buy_volume'][today]
     em_cashflow.in_buy_volume += buys_usd
-    sells_ele = model_setup['market_sell_volume'][model_setup['day']] / average_ele_price
+    sells_ele = model_setup['market_sell_volume'][today] / average_ele_price
     tax_ele += sells_ele * 0.1
     buys_ele = bsc.elephant_buy(buys_usd, em_data['ele_busd_lp'], em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
     tax_ele += buys_ele * 0.1
@@ -208,12 +208,14 @@ for run in range(int(model_setup['run_days'])):
     for stake in futures:  # Need to process each separate futures stake
         stake.pass_days(1)
         rand = random.randint(1, 21)
-        if stake.total_days < model_setup['f_claim_wait']:  # stake too new, pass
-            futures_available += stake.available
-            futures_tvl += stake.debt_burden
-        elif rand == 1 or stake.balance >= 0.9 * stake.max_balance:
-            futures_claimed += stake.claim()
-            futures_tvl += stake.debt_burden
+        if rand == 1 or stake.balance >= 0.9 * stake.max_balance:  # Claim unless stake is too new, then deposit
+            if stake.total_days > model_setup['f_claim_wait']:
+                futures_claimed += stake.claim()
+                futures_tvl += stake.debt_burden
+            else:
+                stake.deposit(model_setup['f_compound_usd'])
+                em_cashflow.in_futures += model_setup['f_compound_usd']
+                futures_tvl += stake.debt_burden
         elif rand == 2 or rand == 3:
             stake.deposit(model_setup['f_compound_usd'])
             em_cashflow.in_futures += model_setup['f_compound_usd']
@@ -281,13 +283,14 @@ for run in range(int(model_setup['run_days'])):
     elif model_setup['peg_trunk']:  # Allow up to 10% drop in Trunk Price
         trunk_sales = (1 - 0.9 ** 0.5) * em_data['trunk_busd_lp'].token_bal['TRUNK']
     else:
-        trunk_sales = trunk_yield * model_setup['yield_sales'] * em_data['trunk_busd_lp'].price * 2
+        trunk_sales = trunk_yield * model_setup['yield_sales'] * em_data['trunk_busd_lp'].price ** 2
     if trunk_sales > trunk_yield:
         trunk_sales = trunk_yield  # Never try to sell more than the actual yield
 
     # ------ Yield Redemption/Sales ------
     if redeem_wait_days <= 30 and em_data['trunk_busd_lp'].price < 0.90:  # This can be adjusted, just guessing
         em_data['redemption_queue'] += trunk_sales
+        em_data['trunk_supply'] -= trunk_sales
     else:
         em_data['trunk_busd_lp'].update_lp('TRUNK', trunk_sales)
     trunk_yield -= trunk_sales  # depending on whether this is positive or negative will determine sales vs hold
@@ -295,8 +298,8 @@ for run in range(int(model_setup['run_days'])):
     # ------ Update balances based on unsold yield ------
     # --- Buys off PCS - included here so that it can use the same deposit ratios defined
     # Once Peg is hit, this is the same as minting
-    trunk_yield += em_data['trunk_busd_lp'].update_lp('BUSD', model_setup['buy_trunk_pcs'][
-        model_setup['day']])  # purchase trunk
+    trunk_yield += em_data['trunk_busd_lp'].update_lp('BUSD', model_setup['buy_trunk_pcs'][today])
+    em_cashflow.in_trunk += model_setup['buy_trunk_pcs'][today]
     # --- Update Balances ---
     if trunk_yield > 0:
         # Mint Trumpet
@@ -310,15 +313,21 @@ for run in range(int(model_setup['run_days'])):
     # ------ Arbitrage Trunk LP with Redemption Pool or Minting ------
     # SQRT(CP) will give perfect split.
     delta = (em_data['trunk_busd_lp'].const_prod ** 0.5 - em_data['trunk_busd_lp'].token_bal['BUSD'])
-    if em_data['trunk_busd_lp'].price <= 1.00 and redeem_wait_days < 30:  # No arbitrage until queue is reasonable.
-        em_data['trunk_busd_lp'].update_lp('BUSD', delta * 0.1)  # Don't arbitrage more than 10% of the delta in a day
-        em_data['redemption_queue'] += delta * 0.1
-        em_cashflow.in_trunk = delta * 0.1
+    in_funds = em_data['bertha'] * model_setup['redemption_support_apr'] * average_ele_price
+    # Keep redemptions lower when price is down and never to exceed 2x the amount of support
+    to_redeem = min(delta * em_data['trunk_busd_lp'].price ** 4, in_funds * 2)
+    if em_data['trunk_busd_lp'].price <= 1.00 and redeem_wait_days <= 45:  # No arbitrage until queue is reasonable.
+        em_data['trunk_busd_lp'].update_lp('BUSD', to_redeem)  # Don't arbitrage more than 5% of the delta in a day
+        em_data['redemption_queue'] += to_redeem
+        em_cashflow.in_trunk = to_redeem
+        em_data['trunk_supply'] -= to_redeem  # Redeemed Trunk is taken out of circulation
     elif em_data['trunk_busd_lp'].price > 1.00:  # Trunk is over $1.  "Delta" will be negative
         em_data['trunk_busd_lp'].update_lp('TRUNK', abs(delta))  # Sell trunk on PCS
         em_data['busd_treasury'] += abs(delta)  # Arber would need to mint trunk from the protocol
         if em_data['trunk_treasury'] > abs(delta):
             em_data['trunk_treasury'] -= abs(delta)  # Comes from Trunk Treasury if there are funds
+        else:
+            em_data['trunk_supply'] += abs(delta)  # Trunk Minted
     else:
         pass
 
@@ -327,11 +336,9 @@ for run in range(int(model_setup['run_days'])):
         trunk_to_sell = em_data['trunk_busd_lp'].token_bal['BUSD'] - (em_data['trunk_busd_lp'].const_prod * 0.9) ** 0.5
     elif model_setup['peg_trunk']:
         trunk_to_sell = 0
-    elif em_data['trunk_busd_lp'].price > 0.5:
-        trunk_to_sell = em_data['trunk_liquid_debt'] * model_setup['daily_liquid_trunk_sales'] * \
-                        em_data['trunk_busd_lp'].price
     else:
-        trunk_to_sell = 0
+        trunk_to_sell = em_data['trunk_liquid_debt'] * model_setup['daily_liquid_trunk_sales'] * \
+                        em_data['trunk_busd_lp'].price  # parabolic increase in trunk sales as price rises
     # Split between Redeem and Sell
     # Need to ensure there is actually trunk left to sell
     if em_data['trunk_held_wallets'] > trunk_to_sell / 2 and \
@@ -344,7 +351,9 @@ for run in range(int(model_setup['run_days'])):
         # Decide where sold trunk should come from.  Use a weighted % of holdings
         em_data['trunk_held_wallets'] -= max(0, em_data['trunk_held_wallets'] /
                                              em_data['trunk_liquid_debt'] * trunk_to_sell)
-        em_data['trumpet'].backing -= max(0, em_data['trumpet'].backing / em_data['trunk_liquid_debt'] * trunk_to_sell)
+        trumpet_to_redeem = max(0, em_data['trumpet'].backing / em_data['trunk_liquid_debt'] * trunk_to_sell) / \
+            em_data['trumpet'].price
+        em_data['trumpet'].redeem_trumpet(trumpet_to_redeem)
         em_data['farm_info']['tvl'] -= max(0, em_data['farm_info']['tvl'] /
                                            em_data['trunk_liquid_debt'] * trunk_to_sell)
     else:
@@ -366,6 +375,7 @@ for run in range(int(model_setup['run_days'])):
                 + em_data['ele_busd_lp'].token_bal['BUSD'] + em_data['ele_bnb_lp'].token_bal['WBNB'] * em_data[
                     'bnb'].usd_value \
                 + em_data['busd_treasury'] + em_data['trunk_treasury'] * em_data['trunk_busd_lp'].price
+    em_market_cap = 1E15 * average_ele_price
     em_growth = em_assets - em_assets_day_start  # How much did the asset sheet grow
     daily_yield_usd = presale_daily_yield * em_data['trunk_busd_lp'].price + futures_available
     em_data['trunk_liquid_debt'] = em_data['trunk_held_wallets'] + em_data['farm_info']['balance'] + \
@@ -378,6 +388,7 @@ for run in range(int(model_setup['run_days'])):
 
     # Output Results
     daily_snapshot = {
+        "$em_market_cap/m": em_market_cap / 1E6,
         "$em_assets/m": em_assets / 1E6,
         "$em_asset_growth/m": em_growth / 1E6,
         "%em_asset_growth": em_growth / em_assets * 100,
@@ -424,7 +435,7 @@ for run in range(int(model_setup['run_days'])):
 
     # Make daily updates and model increases in interest as protocol grows
     em_data['bnb'].usd_value = model_setup['bnb_price_s'][tomorrow]  # Update BNB value
-    model_output[model_setup['day']] = daily_snapshot
+    model_output[today] = daily_snapshot
     model_setup['day'] += pd.Timedelta("1 day")
 
 # for debug, setting break point

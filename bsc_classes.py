@@ -494,19 +494,31 @@ class Trumpet:
         self.users = users
         self.backing = backing
         self.supply = supply
-        self.price = self.backing / self.supply
+        self._price = None
+
+    @property
+    def price(self):
+        if self.supply > 0:
+            return self.backing / self.supply
+        else:
+            return 1
 
     def mint_trumpet(self, trunk):
-        minted = trunk * 0.95 / self.price
-        self.supply += minted
+        old_price = self.price
         self.backing += trunk
-        self.price = self.backing / self.supply
-
+        minted = trunk / old_price * 0.95
+        self.supply += minted
         return minted
 
     def burn_trumpet(self, trumpet):
         self.supply -= trumpet
-        self.price = self.backing / self.supply
+
+    def redeem_trumpet(self, trumpet):
+        old_price = self.price
+        self.supply -= trumpet
+        redeemed = trumpet * old_price * 0.95
+        self.backing -= redeemed
+        return redeemed
 
 
 class Unlimited:
