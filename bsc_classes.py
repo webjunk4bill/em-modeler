@@ -406,7 +406,6 @@ class YieldEngineV6:
         self.claimed = 0
         # self.claimed_pretax = 0
         self.daily_payout = deposit * rate
-        self.taxes_paid = 0
         self.days_since_action = 0
         self.total_days = 0
         self.last_action = 'deposit'

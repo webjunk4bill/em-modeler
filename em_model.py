@@ -1,5 +1,5 @@
 # Elephant Money Modeler
-
+import numpy as np
 import pandas as pd
 from numpy import random
 import bsc_classes as bsc
@@ -15,34 +15,8 @@ em_data = get_em_data(read_blockchain=False)  # False = pull from pickle vs quer
 # Edit parameters in setup_run.py to adjust model parameters
 model_setup = setup_run('2025-12-31', em_data['bnb'].usd_value)
 # --- initialize variables
-# Set up current Futures Stakes (just take average of the total)
-futures = []
-avg_stake = em_data['futures_info']['balance'] / em_data['futures_info']['users']
-avg_compounded = em_data['futures_info']['compounds'] / em_data['futures_info']['users']
-avg_claimed = em_data['futures_info']['claimed'] / em_data['futures_info']['users']
-i = 0
-while i < em_data['futures_info']['users']:
-    futures.append(bsc.YieldEngineV6(avg_stake, 0.005))
-    futures[i].compounds = avg_compounded
-    futures[i].claimed = avg_claimed
-    days_passed = int(model_setup['f_claims_usd'] / futures[i].daily_payout) + 1
-    futures[i].pass_days(days_passed)  # Need to build up the proper amount available to match daily claim total
-    futures[i].total_days = model_setup['f_claim_wait'] + 1  # Assume all current wallets will start with actions
-    i += 1
-# Set up current Stampede Stakes
-stampede = []
-avg_stake = em_data['stampede_info']['balance'] / em_data['stampede_info']['users']
-avg_compounded = em_data['stampede_info']['compounds'] / em_data['stampede_info']['users']
-avg_claimed = em_data['stampede_info']['claimed'] / em_data['stampede_info']['users']
-i = 0
-stp_rate = 0.005 * em_data['trunk_busd_lp'].price
-while i < em_data['stampede_info']['users']:
-    stampede.append(bsc.YieldEngineV6(avg_stake, 0.005 * stp_rate))
-    stampede[i].compounds = avg_compounded
-    stampede[i].claimed = avg_claimed
-    stampede[i].pass_days(random.randint(1, 180))  # this will set up a varying amount (to 6 months) of available
-    i += 1
-# Others
+futures = em_data['futures']
+stampede = em_data['stampede']
 redemptions_paid = 0
 cum_futures_payouts = 0
 running_inflows = 0
@@ -427,11 +401,14 @@ for run in range(int(model_setup['run_days'])):
         "futures_owed/m": futures_tvl / 1E6,
     }
     daily_snapshot = {**daily_snapshot, **em_cashflow.get_results()}
-    if yesterday in model_output:
+    last_week = model_setup['day'] - pd.Timedelta("7d")
+    if last_week in model_output:
         daily_snapshot['%em_income_growth'] = \
-            (daily_snapshot['$em_income'] / model_output[yesterday]['$em_income'] - 1) * 100
+            (daily_snapshot['$em_income'] / model_output[last_week]['$em_income'] - 1) * 100
         daily_snapshot['%em_outflow_growth'] = \
-            (daily_snapshot['$em_outflow'] / model_output[yesterday]['$em_outflow'] - 1) * 100
+            (daily_snapshot['$em_outflow'] / model_output[last_week]['$em_outflow'] - 1) * 100
+        daily_snapshot['%bertha_growth'] = \
+            (daily_snapshot['$bertha/m'] / model_output[last_week]['$bertha/m'] - 1) * 100
 
     # Make daily updates and model increases in interest as protocol grows
     em_data['bnb'].usd_value = model_setup['bnb_price_s'][tomorrow]  # Update BNB value

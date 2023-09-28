@@ -9,6 +9,8 @@ import bsc_classes as bsc
 import addr_tokens
 import datetime as dt
 import pickle
+import pandas as pd
+import math as m
 
 
 def get_em_data(*, read_blockchain: bool = False):
@@ -54,6 +56,52 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['elephant_wallets'] = 1E15 - em_data['graveyard'] - em_data['bertha'] - \
             em_data['ele_busd_lp'].token_bal['ELEPHANT'] - em_data['ele_bnb_lp'].token_bal['ELEPHANT']
 
+        # Set up Futures Stakes - Data imported from Dune
+        # Requires manual export of csv file from "Top Wallets" query.
+        # Data has missing entries, and needs cleanup
+        f_data = pd.read_csv('chain_data/futures_dune.csv')
+        if f_data['TVL'].sum() < 0.975 * em_data['futures_info']['balance']:
+            raise Exception('Dune futures info is stale.  TVL on Dune is more than 2.5% below contract read.')
+        futures = []
+        i = 0
+        for row in f_data.itertuples():
+            futures.append(bsc.YieldEngineV6(row.TVL, 0.005))
+            if not m.isnan(row.compound_value):
+                futures[i].compounds = row.compound_value
+            if not m.isnan(row.claim_value):
+                futures[i].claimed = row.claim_value * -1
+            if not m.isnan(row.since_first_deposit):
+                futures[i].total_days = row.since_first_deposit
+            futures[i].update_rate_limiter()
+            if not m.isnan(row.since_last_withdrawal) and m.isnan(row.since_last_compound):
+                futures[i].pass_days(min(row.since_last_withdrawal, row.since_last_compound))
+            if m.isnan(futures[i].available):
+                raise Exception('NaN found!')
+            i += 1
+        em_data['futures'] = futures
+
+        # Set up Stampede Stakes - Data imported from Dune
+        s_data = pd.read_csv('chain_data/stampede_dune.csv')
+        if s_data['TVL'].sum() < 0.975 * em_data['stampede_info']['balance']:
+            raise Exception('Dune stampede info is stale.  TVL on Dune is more than 2.5% below contract read.')
+        stampede = []
+        i = 0
+        for row in s_data.itertuples():
+            stampede.append(bsc.YieldEngineV6(row.TVL, 0.005 * em_data['start_trunk_price']))
+            if not m.isnan(row.compound_value):
+                stampede[i].compounds = row.compound_value
+            if not m.isnan(row.claim_value):
+                stampede[i].claimed = row.claim_value * -1
+            if not m.isnan(row.since_first_deposit):
+                stampede[i].total_days = row.since_first_deposit
+            stampede[i].update_rate_limiter()
+            if not m.isnan(row.since_last_withdrawal) and m.isnan(row.since_last_compound):
+                stampede[i].pass_days(min(row.since_last_withdrawal, row.since_last_compound))
+            if m.isnan(stampede[i].available):
+                raise Exception('NaN found!')
+            i += 1
+        em_data['stampede'] = stampede
+
         # get EM Manual Info
         em_data['farms_max_apr'] = 1.25 / 365
         em_data['trunk_support_pool'] = 0
@@ -72,7 +120,7 @@ def get_em_data(*, read_blockchain: bool = False):
         pickle.dump(to_pickle, f)
         f.close()
     else:
-        f_o = open('chain_data/emData_2023-09-23 16:13.pkl', 'rb')  # TODO: figure out how to update this automatically
+        f_o = open('chain_data/emData_2023-09-28 15:35.pkl', 'rb')  # TODO: figure out how to update this automatically
         em_data = pickle.load(f_o)
         f_o.close()
 
