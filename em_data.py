@@ -35,7 +35,7 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['redemption_pool'] = bsc.GetWalletBalance(addr_contracts.redemption_pool, addr_tokens.BUSD).balance
         em_data['graveyard'] = bsc.GetWalletBalance(addr_contracts.em_graveyard, addr_tokens.Elephant).balance
         em_data['futures_busd_pool'] = bsc.GetWalletBalance(addr_contracts.busd_buffer_pool, addr_tokens.BUSD).balance
-        em_data['deployer'] = bsc.GetWalletBalance(addr_contracts.deployer_contract, addr_tokens.Elephant).balance
+        # em_data['deployer'] = bsc.GetWalletBalance(addr_contracts.deployer_contract, addr_tokens.Elephant).balance
         # Calculate and set starting values
         ave_ele_price = bsc.get_ave_ele(em_data['ele_busd_lp'], em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
         em_data['start_ele_price'] = ave_ele_price
@@ -65,6 +65,8 @@ def get_em_data(*, read_blockchain: bool = False):
         futures = []
         i = 0
         for row in f_data.itertuples():
+            if row.TVL <= 0:
+                break
             futures.append(bsc.YieldEngineV6(row.TVL, 0.005))
             if not m.isnan(row.compound_value):
                 futures[i].compounds = row.compound_value
@@ -87,6 +89,8 @@ def get_em_data(*, read_blockchain: bool = False):
         stampede = []
         i = 0
         for row in s_data.itertuples():
+            if row.TVL <= 0:  # Seeing some negative depsoit data in Dune
+                break
             stampede.append(bsc.YieldEngineV6(row.TVL, 0.005 * em_data['start_trunk_price']))
             if not m.isnan(row.compound_value):
                 stampede[i].compounds = row.compound_value
@@ -120,7 +124,7 @@ def get_em_data(*, read_blockchain: bool = False):
         pickle.dump(to_pickle, f)
         f.close()
     else:
-        f_o = open('chain_data/emData_2023-09-28 15:35.pkl', 'rb')  # TODO: figure out how to update this automatically
+        f_o = open('chain_data/emData_2023-09-29 10:51.pkl', 'rb')  # TODO: figure out how to update this automatically
         em_data = pickle.load(f_o)
         f_o.close()
 

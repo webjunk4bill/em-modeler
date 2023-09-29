@@ -30,7 +30,7 @@ for run in range(int(model_setup['run_days'])):
     del em_cashflow  # probably not necessary
     em_cashflow = bsc.EMCashflow()
     trunk_yield = 0
-    stp_rate = 0.005 * em_data['trunk_busd_lp'].price
+    stp_rate = min(0.005, 0.005 * em_data['trunk_busd_lp'].price)
     today = model_setup['day']
     tomorrow = model_setup['day'] + pd.Timedelta(1, "d")
     yesterday = model_setup['day'] - pd.Timedelta("1d")
@@ -178,25 +178,31 @@ for run in range(int(model_setup['run_days'])):
     futures_claimed = 0
     futures_available = 0
     futures_tvl = 0
+    futures_debt = 0
+    limiter = 0
+    cnt = 0
     # progress current stakes
     for stake in futures:  # Need to process each separate futures stake
         stake.pass_days(1)
+        if stake.available < 0:
+            raise Exception('Futures available is negative!')
         rand = random.randint(1, 21)
         if rand == 1 or stake.balance >= 0.9 * stake.max_balance:  # Claim unless stake is too new, then deposit
             if stake.total_days > model_setup['f_claim_wait']:
                 futures_claimed += stake.claim()
-                futures_tvl += stake.debt_burden
             else:
                 stake.deposit(model_setup['f_compound_usd'])
                 em_cashflow.in_futures += model_setup['f_compound_usd']
-                futures_tvl += stake.debt_burden
         elif rand == 2 or rand == 3:
             stake.deposit(model_setup['f_compound_usd'])
             em_cashflow.in_futures += model_setup['f_compound_usd']
-            futures_tvl += stake.debt_burden
         else:
             futures_available += stake.available
-            futures_tvl += stake.debt_burden
+        futures_tvl += stake.balance
+        futures_debt += stake.debt_burden
+        limiter += stake.rate_limiter
+        cnt += 1
+    avg_futures_yield = limiter / cnt * 0.005 * 100 # Find the average daily yield rate (Based on limiters)
     # Payout futures and replenish buffer pool if needed
     em_cashflow.out_futures += futures_claimed
     if em_data['futures_busd_pool'] >= futures_claimed:
@@ -218,11 +224,17 @@ for run in range(int(model_setup['run_days'])):
     trunk_tvl = 0
     total_stakes = len(stampede)
     for stake in stampede:
-        wait_days = 18 / min(1, (1 - em_data['trunk_busd_lp'].price) / 2)
+        if stake.available < 0:
+            raise Exception('Stampede available is negative!')
+        if em_data['trunk_busd_lp'].price >= 0.99:
+            wait_days = 18
+        else:
+            wait_days = 18 / min(1, (1 - em_data['trunk_busd_lp'].price) / 2)
         rand = random.randint(1, wait_days + 3)
         stake.pass_days(1, stp_rate)
         if rand == 1 or stake.balance >= 0.9 * stake.max_balance:
-            trunk_yield += stake.claim()  # All claims will add to the days "trunk yield"
+            claimed = stake.claim()
+            trunk_yield += claimed  # All claims will add to the days "trunk yield"
             trunk_tvl += stake.debt_burden
         elif rand == 2 or rand == 3:
             trunk_deposited += 200
@@ -234,7 +246,7 @@ for run in range(int(model_setup['run_days'])):
 
     # Handle Yield and Sales/Redemptions (all in Trunk) ----------------------------------------------------------------
     # ------ Calculate Remainder Daily Trunk Yield ------ #
-    trunk_yield += em_data['farm_info']['tvl'] * em_data['farms_max_apr'] * em_data['trunk_busd_lp'].price
+    trunk_yield += max(0, em_data['farm_info']['tvl'] * em_data['farms_max_apr'] * em_data['trunk_busd_lp'].price)
     presale_daily_yield = trunk_yield
     # Process Trunk Deposits into Stampede (first take from yield, then purchase if necessary)
     if trunk_yield >= trunk_deposited:
@@ -280,8 +292,8 @@ for run in range(int(model_setup['run_days'])):
         em_data['trumpet'].mint_trumpet(trunk_yield * model_setup['yield_to_trumpet'])
         em_data['trunk_held_wallets'] += trunk_yield * model_setup['yield_to_hold']
         # Farm TVL still goes up by total amount, assume bringing pair token
-        em_data['farm_info']['tvl'] += trunk_yield * model_setup['yield_to_farm']
-        em_data['trunk_liquid_debt'] = em_data['trumpet'].backing + em_data['farm_info']['balance'] + \
+        em_data['farm_info']['tvl'] += trunk_yield * model_setup['yield_to_farm'] * 2
+        em_data['trunk_liquid_debt'] = em_data['trumpet'].backing + em_data['farm_info']['tvl'] / 2 + \
                                        em_data['trunk_held_wallets']  # Update liquid debt
 
     # ------ Arbitrage Trunk LP with Redemption Pool or Minting ------
@@ -315,21 +327,17 @@ for run in range(int(model_setup['run_days'])):
                         em_data['trunk_busd_lp'].price  # parabolic increase in trunk sales as price rises
     # Split between Redeem and Sell
     # Need to ensure there is actually trunk left to sell
-    if em_data['trunk_held_wallets'] > trunk_to_sell / 2 and \
-            em_data['trumpet'].backing > trunk_to_sell / 2 and \
-            em_data['farm_info']['balance'] > trunk_to_sell:
+    if em_data['trunk_liquid_debt'] >= trunk_to_sell:
         if redeem_wait_days <= 30:  # Redemption Queue at one week time to payout
             em_data['redemption_queue'] += trunk_to_sell  # Redeem Trunk
         else:
             em_data['trunk_busd_lp'].update_lp('TRUNK', trunk_to_sell)  # Sell Trunk
         # Decide where sold trunk should come from.  Use a weighted % of holdings
-        em_data['trunk_held_wallets'] -= max(0, em_data['trunk_held_wallets'] /
-                                             em_data['trunk_liquid_debt'] * trunk_to_sell)
-        trumpet_to_redeem = max(0, em_data['trumpet'].backing / em_data['trunk_liquid_debt'] * trunk_to_sell) / \
+        em_data['trunk_held_wallets'] -= em_data['trunk_held_wallets'] / em_data['trunk_liquid_debt'] * trunk_to_sell
+        trumpet_to_redeem = em_data['trumpet'].backing / em_data['trunk_liquid_debt'] * trunk_to_sell / \
             em_data['trumpet'].price
         em_data['trumpet'].redeem_trumpet(trumpet_to_redeem)
-        em_data['farm_info']['tvl'] -= max(0, em_data['farm_info']['tvl'] /
-                                           em_data['trunk_liquid_debt'] * trunk_to_sell)
+        em_data['farm_info']['tvl'] -= em_data['farm_info']['tvl'] / em_data['trunk_liquid_debt'] * trunk_to_sell
     else:
         trunk_to_sell = 0
 
@@ -356,7 +364,7 @@ for run in range(int(model_setup['run_days'])):
                                    em_data['trumpet'].backing + trunk_available
     trunk_total_debt = em_data['trunk_liquid_debt'] + trunk_tvl
     usd_liquid_debt = em_data['trunk_liquid_debt'] * em_data['trunk_busd_lp'].price + futures_available
-    usd_total_debt = trunk_total_debt * em_data['trunk_busd_lp'].price + futures_tvl
+    usd_total_debt = trunk_total_debt * em_data['trunk_busd_lp'].price + futures_debt
     running_inflows += em_cashflow.in_total
     running_outflows += em_cashflow.out_total
 
@@ -398,7 +406,8 @@ for run in range(int(model_setup['run_days'])):
         "futures_busd_pool": em_data['futures_busd_pool'],
         "stampede_owed/m": trunk_tvl / 1E6,
         "$stampede_owed/m": trunk_tvl / 1E6 * em_data['trunk_busd_lp'].price,
-        "futures_owed/m": futures_tvl / 1E6,
+        "futures_owed/m": futures_debt / 1E6,
+        "avg_futures_yield": avg_futures_yield
     }
     daily_snapshot = {**daily_snapshot, **em_cashflow.get_results()}
     last_week = model_setup['day'] - pd.Timedelta("7d")

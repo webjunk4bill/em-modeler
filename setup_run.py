@@ -29,15 +29,15 @@ def setup_run(end_date, bnb_price):
     # Incoming Funds
     # These are starting values.  They can be adjusted during the run as needed (FOMO, etc.)
     # Get data from Dune dashboards (Governance sheet) and LP
-    ele_treasury_in_usd = 2.7E6 / 30  # Total 30d in from governance page
+    ele_treasury_in_usd = 3.1E6 / 30  # Total 30d in from governance page
     # Use %-ages from the governance page
-    nft_mint_volume = 45.6 / 100 * ele_treasury_in_usd
-    nft_sell_taxes = 0.08 / 100 * ele_treasury_in_usd
-    buyback = 39.1 / 100 * ele_treasury_in_usd
-    bwb_taxes = 14.6 / 100 * ele_treasury_in_usd
+    nft_mint_volume = 63.1 / 100 * ele_treasury_in_usd
+    nft_sell_taxes = 1.23 / 100 * ele_treasury_in_usd
+    buyback = 25.0 / 100 * ele_treasury_in_usd
+    bwb_taxes = 11.4 / 100 * ele_treasury_in_usd
     # Get Buy / Sell Volume from LP page.  Need to export to CSV and average to get 30d average
-    avg_nb_buy_volume = 356700 - buyback - nft_mint_volume  # "non-Bertha" buy volume since traced separately
-    avg_sell_volume = 76000
+    avg_nb_buy_volume = 476000 - buyback - nft_mint_volume  # "non-Bertha" buy volume since traced separately
+    avg_sell_volume = 98000
     buy_sell_ratio = avg_nb_buy_volume / (avg_sell_volume + avg_nb_buy_volume)
     bwb_volume = bwb_taxes / 0.08 * buy_sell_ratio  # Bertha collects 8% tax
     swb_volume = bwb_taxes / 0.08 * (1 - buy_sell_ratio)
@@ -46,8 +46,9 @@ def setup_run(end_date, bnb_price):
     buy_trunk_pcs = 15000  # Trunk buys off PCS.  Assume goes to wallets for arbitrages, swing trading
     # Futures, estimated based off new wallets and busd_treasury inflows
     # This doesn't always match buyback due to the trailing nature of only using 50% of the busd treasury for buybacks
-    busd_treasury_in = 1.8E6 / 30
-    new_wallets = int(67 / 7)
+    busd_treasury_in = 1.9E6 / 30
+    # Get new wallets from the dune holders page
+    new_wallets = int(76 / 7)
     new_deposit = busd_treasury_in / new_wallets
     futures = {'f_compounds': 90,
                'f_compound_usd': 200,
@@ -81,14 +82,14 @@ def setup_run(end_date, bnb_price):
     full_range = pd.date_range(model_setup['day'], end_date, freq="D")
 
     # ------ Set up BNB Growth ------
-    bnb_price_movement = [bnb_price, 265]  # This will be split over the run period.
+    bnb_price_movement = [bnb_price, 250, 200, 225]  # This will be split over the run period.
     bnb_sparse_range = pd.interval_range(model_setup['day'], end_date, len(bnb_price_movement)).left
     temp_bnb_s = pd.Series(bnb_price_movement, index=bnb_sparse_range)
-    temp_bnb_s[end_date] = 300  # final BNB price
+    temp_bnb_s[end_date] = 250  # final BNB price
     model_setup['bnb_price_s'] = pd.Series(temp_bnb_s, index=full_range).interpolate()  # get a daily price increase
 
     # --- EM Growth ---
-    # BwB
+    # Non-Debt producing Growth
     ele_buy_multiplier = [1]
     ele_sparse_range = pd.interval_range(model_setup['day'], end_date, len(ele_buy_multiplier)).left
     temp_ele_s = pd.Series(ele_buy_multiplier, index=ele_sparse_range)
@@ -98,15 +99,15 @@ def setup_run(end_date, bnb_price):
     model_setup['swb_volume'] = np.multiply(temp_ele_full, swb_volume)
     model_setup['market_buy_volume'] = np.multiply(temp_ele_full, market_buy_volume)
     model_setup['market_sell_volume'] = np.multiply(temp_ele_full, market_sell_volume)
+    model_setup['nft_mint_volume'] = np.multiply(temp_ele_full, nft_mint_volume)
+    model_setup['nft_sales_revenue'] = np.multiply(temp_ele_full, nft_sell_taxes)
 
-    # Other Income
+    # Debt producing growth
     income_multiplier = [1]
     inc_sparse_range = pd.interval_range(model_setup['day'], end_date, len(income_multiplier)).left
     temp_income_s = pd.Series(income_multiplier, index=inc_sparse_range)
     temp_income_s[end_date] = 1
     temp_income_full = pd.Series(temp_income_s, index=full_range).interpolate()
-    model_setup['nft_mint_volume'] = np.multiply(temp_income_full, nft_mint_volume)
-    model_setup['nft_sales_revenue'] = np.multiply(temp_income_full, nft_sell_taxes)
     model_setup['buy_trunk_pcs'] = np.multiply(temp_income_full, buy_trunk_pcs)
     model_setup['buy_depot'] = np.multiply(temp_income_full, buy_depot)
     model_setup['f_new_wallets'] = np.multiply(temp_income_full, new_wallets)
