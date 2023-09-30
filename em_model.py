@@ -47,7 +47,7 @@ for run in range(int(model_setup['run_days'])):
     begin_bnb_price = em_data['bnb'].usd_value
     begin_trunk_price = em_data['trunk_busd_lp'].price
 
-    # Incoming Funds ---------------------------------------------------------------------
+# Incoming Funds ---------------------------------------------------------------------
     # --- Farmer's Depot ---
     '''
     depot_buy_usd = model_setup['buy_depot'][today]  # Don't want to directly modify the starting value
@@ -80,7 +80,7 @@ for run in range(int(model_setup['run_days'])):
     ele_bought = bsc.elephant_buy(sell_funds, em_data['ele_busd_lp'], em_data['ele_bnb_lp'], begin_bnb_price)
     em_data['bertha'] += ele_bought  # bertha gets full amount of mint volume
 
-    # Handle Elephant Buy/Sell ---------------------------------------------------------------------
+# Handle Elephant Buy/Sell ---------------------------------------------------------------------
     # ------ BwB ------
     ele_bought = bsc.elephant_buy(model_setup['bwb_volume'][today], em_data['ele_busd_lp'],
                                   em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
@@ -98,6 +98,7 @@ for run in range(int(model_setup['run_days'])):
     em_cashflow.out_sell_volume = model_setup['swb_volume'][today]
     average_ele_price = bsc.get_ave_ele(em_data['ele_busd_lp'], em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
     # TODO: Create class for Elephant containing LPs and automatically keeping the price up to date
+
     # ------ Market Buys / Sells ------
     tax_ele = 0
     buys_usd = model_setup['market_buy_volume'][today]
@@ -120,7 +121,7 @@ for run in range(int(model_setup['run_days'])):
     em_cashflow.in_taxes += reflect_to_bertha * average_ele_price
     em_data['elephant_wallets'] += tax_ele / 2 * (em_data['elephant_wallets'] / 1E15)
 
-    # Handle Governance ---------------------------------------------------------------------
+# Handle Governance ---------------------------------------------------------------------
     # ------ Graveyard Rebalance ------
     if em_data['graveyard'] >= 510E12:
         em_data['graveyard'] -= 10E12
@@ -173,6 +174,7 @@ for run in range(int(model_setup['run_days'])):
     em_data['bertha'] -= perf_payout_ele
     em_cashflow.out_perf += perf_payout_ele * average_ele_price
 
+# Handle Yield Engines -------------------------------------------------------------------------------------------
     # ------ Process Futures Stakes ------
     # Set up a randomized claim / deposit process based on a 2:1 ratio and 21 day cycle
     futures_claimed = 0
@@ -226,7 +228,7 @@ for run in range(int(model_setup['run_days'])):
     for stake in stampede:
         if stake.available < 0:
             raise Exception('Stampede available is negative!')
-        if em_data['trunk_busd_lp'].price >= 0.99:
+        if em_data['trunk_busd_lp'].price >= 0.9:
             wait_days = 18
         else:
             wait_days = 18 / min(1, (1 - em_data['trunk_busd_lp'].price) / 2)
@@ -234,7 +236,7 @@ for run in range(int(model_setup['run_days'])):
         stake.pass_days(1, stp_rate)
         if rand == 1 or stake.balance >= 0.9 * stake.max_balance:
             claimed = stake.claim()
-            trunk_yield += claimed  # All claims will add to the days "trunk yield"
+            trunk_yield += claimed  # All claims will add to the day's "trunk yield"
             trunk_tvl += stake.debt_burden
         elif rand == 2 or rand == 3:
             trunk_deposited += 200
@@ -244,11 +246,11 @@ for run in range(int(model_setup['run_days'])):
             trunk_available += stake.available  # let rewards accrue, track total available
             trunk_tvl += stake.debt_burden
 
-    # Handle Yield and Sales/Redemptions (all in Trunk) ----------------------------------------------------------------
-    # ------ Calculate Remainder Daily Trunk Yield ------ #
+    # ------ Calculate Remainder Daily Trunk Yield ------
     trunk_yield += max(0, em_data['farm_info']['tvl'] * em_data['farms_max_apr'] * em_data['trunk_busd_lp'].price)
     presale_daily_yield = trunk_yield
-    # Process Trunk Deposits into Stampede (first take from yield, then purchase if necessary)
+
+    # ------ Process Trunk Deposits into Stampede (first take from yield, then purchase if necessary) ------
     if trunk_yield >= trunk_deposited:
         trunk_yield -= trunk_deposited  # Assume yield was used to make stampede deposits
     else:
@@ -263,6 +265,7 @@ for run in range(int(model_setup['run_days'])):
         em_data['trunk_supply'] += trunk_yield - em_data['trunk_treasury']
         em_data['trunk_treasury'] = 0
 
+# Handle Sales/Redemptions (all in Trunk) ----------------------------------------------------------------
     # ------ Determine community Peg support and sales amount ------
     if model_setup['peg_trunk'] and em_data['trunk_busd_lp'].price < 1:
         trunk_sales = daily_bertha_support_usd  # By looking at only USD, will keep selling low while $trunk is low
@@ -274,7 +277,7 @@ for run in range(int(model_setup['run_days'])):
         trunk_sales = trunk_yield  # Never try to sell more than the actual yield
 
     # ------ Yield Redemption/Sales ------
-    if redeem_wait_days <= 30 and em_data['trunk_busd_lp'].price < 0.90:  # This can be adjusted, just guessing
+    if redeem_wait_days <= 30 and em_data['trunk_busd_lp'].price < 0.95:  # This can be adjusted, just guessing
         em_data['redemption_queue'] += trunk_sales
         em_data['trunk_supply'] -= trunk_sales
     else:
@@ -303,7 +306,7 @@ for run in range(int(model_setup['run_days'])):
     # Keep redemptions lower when price is down and never to exceed 2x the amount of support
     to_redeem = min(delta * em_data['trunk_busd_lp'].price ** 4, in_funds * 2)
     if em_data['trunk_busd_lp'].price <= 1.00 and redeem_wait_days <= 45:  # No arbitrage until queue is reasonable.
-        em_data['trunk_busd_lp'].update_lp('BUSD', to_redeem)  # Don't arbitrage more than 5% of the delta in a day
+        em_data['trunk_busd_lp'].update_lp('BUSD', to_redeem)
         em_data['redemption_queue'] += to_redeem
         em_cashflow.in_trunk = to_redeem
         em_data['trunk_supply'] -= to_redeem  # Redeemed Trunk is taken out of circulation
@@ -317,29 +320,35 @@ for run in range(int(model_setup['run_days'])):
     else:
         pass
 
-    # Handle Liquid Trunk Selling/Redeeming ---------------------------------------------------------------------
-    if model_setup['peg_trunk'] and em_data['trunk_busd_lp'].price > 0.99:  # Allow some selling
-        trunk_to_sell = em_data['trunk_busd_lp'].token_bal['BUSD'] - (em_data['trunk_busd_lp'].const_prod * 0.9) ** 0.5
-    elif model_setup['peg_trunk']:
-        trunk_to_sell = 0
-    else:
-        trunk_to_sell = em_data['trunk_liquid_debt'] * model_setup['daily_liquid_trunk_sales'] * \
-                        em_data['trunk_busd_lp'].price  # parabolic increase in trunk sales as price rises
+    # ------ Handle Liquid Trunk Selling/Redeeming ------
+    # Allow Trunk to drop by X% when at Peg.  Adjust downwards when below Peg
+    # Sell up to 75% of redemption pool funds
+    max_pct_drop = 0.1 * min(1, em_data['trunk_busd_lp'].price)
+    trunk_to_sell = ((1 + max_pct_drop) ** 0.5 - 1) * em_data['trunk_busd_lp'].token_bal['TRUNK'] + \
+        0.75 * em_data['redemption_pool']
+    sold = 0
+    # Where do sales come from.  Don't sell more than 10% of any holding in a day
+    # Loose trunk in wallets first
+    if em_data['trunk_held_wallets'] * 0.1 <= trunk_to_sell:
+        em_data['trunk_held_wallets'] *= 0.9
+        trunk_to_sell -= em_data['trunk_held_wallets'] * 0.1
+        sold += em_data['trunk_held_wallets'] * 0.1
+    # Then Trumpet (only 5%)
+    if em_data['trumpet'].backing * 0.05 <= trunk_to_sell:
+        redeem = em_data['trumpet'].backing / em_data['trumpet'].price * 0.05
+        trunk_to_sell -= em_data['trumpet'].backing * 0.05
+        em_data['trumpet'].redeem_trumpet(redeem)
+        sold += em_data['trumpet'].backing * 0.05
+    # Then Farms
+    if em_data['farm_info']['tvl'] / 2 * 0.05 <= trunk_to_sell:
+        em_data['farm_info']['tvl'] *= 0.95
+        trunk_to_sell -= em_data['farm_info']['tvl'] / 2 * 0.05
+        sold += em_data['farm_info']['tvl'] / 2 * 0.05
     # Split between Redeem and Sell
-    # Need to ensure there is actually trunk left to sell
-    if em_data['trunk_liquid_debt'] >= trunk_to_sell:
-        if redeem_wait_days <= 30:  # Redemption Queue at one week time to payout
-            em_data['redemption_queue'] += trunk_to_sell  # Redeem Trunk
-        else:
-            em_data['trunk_busd_lp'].update_lp('TRUNK', trunk_to_sell)  # Sell Trunk
-        # Decide where sold trunk should come from.  Use a weighted % of holdings
-        em_data['trunk_held_wallets'] -= em_data['trunk_held_wallets'] / em_data['trunk_liquid_debt'] * trunk_to_sell
-        trumpet_to_redeem = em_data['trumpet'].backing / em_data['trunk_liquid_debt'] * trunk_to_sell / \
-            em_data['trumpet'].price
-        em_data['trumpet'].redeem_trumpet(trumpet_to_redeem)
-        em_data['farm_info']['tvl'] -= em_data['farm_info']['tvl'] / em_data['trunk_liquid_debt'] * trunk_to_sell
+    if redeem_wait_days <= 30:  # Redemption Queue at one week time to payout
+        em_data['redemption_queue'] += sold  # Redeem Trunk
     else:
-        trunk_to_sell = 0
+        em_data['trunk_busd_lp'].update_lp('TRUNK', sold)  # Sell Trunk
 
     # ------ Handle Daily Raffle ------
     # 10% of the trunk treasury is paid out to raffle winners
@@ -384,6 +393,8 @@ for run in range(int(model_setup['run_days'])):
         "$elephant/m": average_ele_price * 1E6,
         "$trunk": em_data['trunk_busd_lp'].price,
         "trumpet": em_data['trumpet'].price,
+        "trumpet_backing": em_data['trumpet'].backing,
+        "trumpet_supply": em_data['trumpet'].supply,
         "$BNB": em_data['bnb'].usd_value,
         "$bertha_payouts/m": (daily_bertha_support_usd + futures_claimed) / 1E6,
         "daily_trunk_yield": presale_daily_yield,
