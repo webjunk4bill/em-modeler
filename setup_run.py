@@ -31,10 +31,10 @@ def setup_run(end_date, bnb_price):
     # Get data from Dune dashboards (Governance sheet) and LP
     ele_treasury_in_usd = 3.1E6 / 30  # Total 30d in from governance page
     # Use %-ages from the governance page
-    nft_mint_volume = 63.1 / 100 * ele_treasury_in_usd
+    nft_mint_volume = 12.5 / 100 * ele_treasury_in_usd
     nft_sell_taxes = 1.23 / 100 * ele_treasury_in_usd
-    buyback = 25.0 / 100 * ele_treasury_in_usd
-    bwb_taxes = 11.4 / 100 * ele_treasury_in_usd
+    buyback = 59.9 / 100 * ele_treasury_in_usd
+    bwb_taxes = 26.4 / 100 * ele_treasury_in_usd
     # Get Buy / Sell Volume from LP page.  Need to export to CSV and average to get 30d average
     avg_nb_buy_volume = 476000 - buyback - nft_mint_volume  # "non-Bertha" buy volume since traced separately
     avg_sell_volume = 98000
@@ -82,18 +82,18 @@ def setup_run(end_date, bnb_price):
     full_range = pd.date_range(model_setup['day'], end_date, freq="D")
 
     # ------ Set up BNB Growth ------
-    bnb_price_movement = [bnb_price, 250, 200, 225]  # This will be split over the run period.
+    bnb_price_movement = [bnb_price]  # This will be split over the run period.
     bnb_sparse_range = pd.interval_range(model_setup['day'], end_date, len(bnb_price_movement)).left
     temp_bnb_s = pd.Series(bnb_price_movement, index=bnb_sparse_range)
-    temp_bnb_s[end_date] = 250  # final BNB price
+    temp_bnb_s[end_date] = 225  # final BNB price
     model_setup['bnb_price_s'] = pd.Series(temp_bnb_s, index=full_range).interpolate()  # get a daily price increase
 
     # --- EM Growth ---
     # Non-Debt producing Growth
-    ele_buy_multiplier = [1, 1.4, 1.7, 1.9]
+    ele_buy_multiplier = [1]
     ele_sparse_range = pd.interval_range(model_setup['day'], end_date, len(ele_buy_multiplier)).left
     temp_ele_s = pd.Series(ele_buy_multiplier, index=ele_sparse_range)
-    temp_ele_s[end_date] = 2
+    temp_ele_s[end_date] = 1
     temp_ele_full = pd.Series(temp_ele_s, index=full_range).interpolate()
     model_setup['bwb_volume'] = np.multiply(temp_ele_full, bwb_volume)  # This in $USD
     model_setup['swb_volume'] = np.multiply(temp_ele_full, swb_volume)
@@ -103,10 +103,10 @@ def setup_run(end_date, bnb_price):
     model_setup['nft_sales_revenue'] = np.multiply(temp_ele_full, nft_sell_taxes)
 
     # Debt producing growth
-    income_multiplier = [1, 1.4, 1.7, 1.9]
+    income_multiplier = [1]
     inc_sparse_range = pd.interval_range(model_setup['day'], end_date, len(income_multiplier)).left
     temp_income_s = pd.Series(income_multiplier, index=inc_sparse_range)
-    temp_income_s[end_date] = 2
+    temp_income_s[end_date] = 1
     temp_income_full = pd.Series(temp_income_s, index=full_range).interpolate()
     model_setup['buy_trunk_pcs'] = np.multiply(temp_income_full, buy_trunk_pcs)
     model_setup['buy_depot'] = np.multiply(temp_income_full, buy_depot)

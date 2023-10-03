@@ -45,7 +45,7 @@ def em_plot_funds(em_df):
 
 def em_plot_time(em_df):
     # em_df['daily_debt_ratio'] = np.multiply((em_df['daily_debt_ratio']), 100)  # for better plotting
-    em_df['asset_debt_ratio'] = np.multiply(np.divide(em_df['$em_assets/m'], em_df['$liquid_debt/m']), 100)
+    em_df['treasury_debt_ratio'] = np.multiply(np.divide(em_df['$bertha/m'], em_df['$liquid_debt/m']), 100)
     # --- Overview
     fig1, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=2)
     em_df[['$bertha/m',
@@ -56,8 +56,8 @@ def em_plot_time(em_df):
                                                 grid=True)
     em_df['$BNB'].plot(ax=axes[0, 1], ylabel='$USD', title="BNB Price",
                        sharex=False, sharey=False, grid=True)
-    em_df[['$elephant/m', '$trunk', 'trumpet']].plot(ax=axes[1, 1], ylabel='$USD', title='Token Price',
-                                                     sharex=False, sharey=False, grid=True)
+    em_df[['$elephant/m', '$trunk']].plot(ax=axes[1, 1], ylabel='$USD', title='Token Price',
+                                          sharex=False, sharey=False, grid=True)
     plt.tight_layout()
     plt.show()
     fig1.savefig('outputs/fig1_{0}.png'.format(dt.datetime.today()))
@@ -68,9 +68,9 @@ def em_plot_time(em_df):
                                      title='EM Market Cap', sharex=False, sharey=False, grid=True)
     em_df['$em_cashflow'].plot(ax=axes[0, 1], ylabel='$USD', title='Elephant Money Cashflow',
                                sharex=False, sharey=False, grid=True)
-    em_df['%total_debt_ratio'].plot(ax=axes[1, 0], ylabel='%',
-                                    title='EM Treasury to Total Debt Ratio', sharex=False, sharey=False, grid=True)
-    em_df['%liquid_debt_ratio'].plot(ax=axes[1, 1], ylabel='% Serviceable Yields',
+    em_df['%bertha_growth'].plot(ax=axes[1, 0], ylabel='%',
+                                 title='Weekly Treasury Growth', sharex=False, sharey=False, grid=True)
+    em_df['%liquid_debt_ratio'].plot(ax=axes[1, 1], ylabel='%',
                                      title='EM Treasury to Liquid Debt Ratio',
                                      sharex=False, sharey=False, grid=True)
     plt.tight_layout()

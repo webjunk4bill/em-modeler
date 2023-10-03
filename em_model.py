@@ -13,7 +13,7 @@ em_data = get_em_data(read_blockchain=False)  # False = pull from pickle vs quer
 
 # Run Model Setup (starting funds, run quarters, current BNB price)
 # Edit parameters in setup_run.py to adjust model parameters
-model_setup = setup_run('2025-12-31', em_data['bnb'].usd_value)
+model_setup = setup_run('2026-10-01', em_data['bnb'].usd_value)
 # --- initialize variables
 futures = em_data['futures']
 stampede = em_data['stampede']
@@ -23,6 +23,8 @@ running_inflows = 0
 running_outflows = 0
 model_output = {}
 em_cashflow = bsc.EMCashflow()
+futures_done = False
+sunset_futures = True
 
 # Create and Run Model
 for run in range(int(model_setup['run_days'])):
@@ -62,10 +64,16 @@ for run in range(int(model_setup['run_days'])):
     wallets = int(model_setup['f_new_wallets'][today])
     deposit = model_setup['f_new_deposit'][today]
     for _ in range(wallets):
-        em_data['futures_busd_pool'] += deposit * 0.1
-        em_data['busd_treasury'] += deposit * 0.9
-        futures.append(bsc.YieldEngineV6(deposit, 0.005))  # create new stake
-        em_cashflow.in_futures += deposit
+        if sunset_futures is True and begin_trunk_price >= 0.98 or futures_done is True:
+            futures_done = True
+            trunk = em_data['trunk_busd_lp'].update_lp("BUSD", deposit)  # Fresh deposits need to buy trunk
+            stampede.append(bsc.YieldEngineV6(trunk, 0.005 * begin_trunk_price))
+            em_cashflow.in_trunk += deposit
+        else:
+            em_data['futures_busd_pool'] += deposit * 0.1
+            em_data['busd_treasury'] += deposit * 0.9
+            futures.append(bsc.YieldEngineV6(deposit, 0.005))  # create new stake
+            em_cashflow.in_futures += deposit
     # --- NFT Mints ---
     mint_funds = model_setup['nft_mint_volume'][today]
     mint_price = em_data['nft'].price
@@ -189,15 +197,20 @@ for run in range(int(model_setup['run_days'])):
         if stake.available < 0:
             raise Exception('Futures available is negative!')
         rand = random.randint(1, 21)
+        deposit = model_setup['f_compound_usd']
         if rand == 1 or stake.balance >= 0.9 * stake.max_balance:  # Claim unless stake is too new, then deposit
             if stake.total_days > model_setup['f_claim_wait']:
                 futures_claimed += stake.claim()
             else:
-                stake.deposit(model_setup['f_compound_usd'])
-                em_cashflow.in_futures += model_setup['f_compound_usd']
+                stake.deposit(deposit)
+                em_data['futures_busd_pool'] += deposit * 0.1
+                em_data['busd_treasury'] += deposit * 0.9
+                em_cashflow.in_futures += deposit
         elif rand == 2 or rand == 3:
-            stake.deposit(model_setup['f_compound_usd'])
-            em_cashflow.in_futures += model_setup['f_compound_usd']
+            stake.deposit(deposit)
+            em_data['futures_busd_pool'] += deposit * 0.1
+            em_data['busd_treasury'] += deposit * 0.9
+            em_cashflow.in_futures += deposit
         else:
             futures_available += stake.available
         futures_tvl += stake.balance
