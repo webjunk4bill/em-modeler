@@ -113,6 +113,26 @@ def em_plot_time(em_df):
     plt.show()
     fig4.savefig('outputs/fig4_{0}.png'.format(dt.datetime.today()))
 
+    # --- Key Summary
+    fig5, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=3)
+    em_df[['$bertha/m',
+           '$liquid_debt/m']].plot(ax=axes[0, 0], ylabel='$USD (millions)',
+                                   title='Treasury Value and Liquid Debt', sharex=False, sharey=False, grid=True)
+    em_df[['$elephant/m', '$trunk']].plot(ax=axes[1, 0], ylabel='$USD', title='Token Price',
+                                          sharex=False, sharey=False, grid=True)
+    em_df['futures_owed/m'].plot(ax=axes[0, 1], ylabel='$millions', title='Futures TVL',
+                                 sharex=False, sharey=False, grid=True)
+    em_df[['in_futures', 'out_futures']].plot(ax=axes[1, 1], ylabel='$USD', title='Daily Futures In/Out',
+                                              sharex=False, sharey=False, grid=True)
+    em_df['stampede_owed/m'].plot(ax=axes[0, 2], ylabel='Trunk (millions)', title='Stampede TVL (Trunk)',
+                                  sharex=False, sharey=False, grid=True)
+    em_df['$em_cashflow'].plot(ax=axes[1, 2], ylabel='$USD', title='Elephant Money Cashflow',
+                               sharex=False, sharey=False, grid=True)
+
+    plt.tight_layout()
+    plt.show()
+    fig5.savefig('outputs/fig5_{0}.png'.format(dt.datetime.today()))
+
 
 '''
     fig4, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=2)

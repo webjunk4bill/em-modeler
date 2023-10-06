@@ -24,7 +24,8 @@ running_outflows = 0
 model_output = {}
 em_cashflow = bsc.EMCashflow()
 futures_done = False
-sunset_futures = True
+sunset_futures = False
+new_buffer_pool_apr = 0.05 / 365
 
 # Create and Run Model
 for run in range(int(model_setup['run_days'])):
@@ -38,7 +39,8 @@ for run in range(int(model_setup['run_days'])):
     yesterday = model_setup['day'] - pd.Timedelta("1d")
     # Daily Bertha Support ---------------------------------------------------------------------
     average_ele_price = bsc.get_ave_ele(em_data['ele_busd_lp'], em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
-    daily_bertha_support_usd = em_data['bertha'] * average_ele_price * model_setup['bertha_outflows']
+    daily_bertha_support_usd = em_data['bertha'] * average_ele_price * (model_setup['bertha_outflows'] +
+                                                                        new_buffer_pool_apr)
     em_assets_day_start = em_data['bertha'] * average_ele_price + em_data['trunk_busd_lp'].token_bal['BUSD'] + \
                           em_data['ele_busd_lp'].token_bal['BUSD'] + em_data['ele_bnb_lp'].token_bal['WBNB'] * \
                           em_data['bnb'].usd_value + em_data['busd_treasury'] + em_data['trunk_treasury'] * \
@@ -49,7 +51,7 @@ for run in range(int(model_setup['run_days'])):
     begin_bnb_price = em_data['bnb'].usd_value
     begin_trunk_price = em_data['trunk_busd_lp'].price
 
-# Incoming Funds ---------------------------------------------------------------------
+    # Incoming Funds ---------------------------------------------------------------------
     # --- Farmer's Depot ---
     '''
     depot_buy_usd = model_setup['buy_depot'][today]  # Don't want to directly modify the starting value
@@ -88,7 +90,7 @@ for run in range(int(model_setup['run_days'])):
     ele_bought = bsc.elephant_buy(sell_funds, em_data['ele_busd_lp'], em_data['ele_bnb_lp'], begin_bnb_price)
     em_data['bertha'] += ele_bought  # bertha gets full amount of mint volume
 
-# Handle Elephant Buy/Sell ---------------------------------------------------------------------
+    # Handle Elephant Buy/Sell ---------------------------------------------------------------------
     # ------ BwB ------
     ele_bought = bsc.elephant_buy(model_setup['bwb_volume'][today], em_data['ele_busd_lp'],
                                   em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
@@ -129,7 +131,7 @@ for run in range(int(model_setup['run_days'])):
     em_cashflow.in_taxes += reflect_to_bertha * average_ele_price
     em_data['elephant_wallets'] += tax_ele / 2 * (em_data['elephant_wallets'] / 1E15)
 
-# Handle Governance ---------------------------------------------------------------------
+    # Handle Governance ---------------------------------------------------------------------
     # ------ Graveyard Rebalance ------
     if em_data['graveyard'] >= 510E12:
         em_data['graveyard'] -= 10E12
@@ -182,7 +184,16 @@ for run in range(int(model_setup['run_days'])):
     em_data['bertha'] -= perf_payout_ele
     em_cashflow.out_perf += perf_payout_ele * average_ele_price
 
-# Handle Yield Engines -------------------------------------------------------------------------------------------
+    # ------ New Buffer Pool ------
+    # Goal of this is to increase the BUSD buffer pool with a slow payout of Elephant APR governance
+    # This should smooth out the growth and avoid significant sell-offs to pay futures debt later on
+    # This is not treated as cashflow because it's still part of the treasury value
+    new_buffer_payout_ele = em_data['bertha'] * new_buffer_pool_apr
+    em_data['futures_busd_pool'] += bsc.elephant_sell(new_buffer_payout_ele, em_data['ele_busd_lp'],
+                                                      em_data['ele_bnb_lp'],
+                                                      em_data['bnb'].usd_value)
+
+    # Handle Yield Engines -------------------------------------------------------------------------------------------
     # ------ Process Futures Stakes ------
     # Set up a randomized claim / deposit process based on a 2:1 ratio and 21 day cycle
     futures_claimed = 0
@@ -217,7 +228,7 @@ for run in range(int(model_setup['run_days'])):
         futures_debt += stake.debt_burden
         limiter += stake.rate_limiter
         cnt += 1
-    avg_futures_yield = limiter / cnt * 0.005 * 100 # Find the average daily yield rate (Based on limiters)
+    avg_futures_yield = limiter / cnt * 0.005 * 100  # Find the average daily yield rate (Based on limiters)
     # Payout futures and replenish buffer pool if needed
     em_cashflow.out_futures += futures_claimed
     if em_data['futures_busd_pool'] >= futures_claimed:
@@ -278,7 +289,7 @@ for run in range(int(model_setup['run_days'])):
         em_data['trunk_supply'] += trunk_yield - em_data['trunk_treasury']
         em_data['trunk_treasury'] = 0
 
-# Handle Sales/Redemptions (all in Trunk) ----------------------------------------------------------------
+    # Handle Sales/Redemptions (all in Trunk) ----------------------------------------------------------------
     # ------ Determine community Peg support and sales amount ------
     if model_setup['peg_trunk'] and em_data['trunk_busd_lp'].price < 1:
         trunk_sales = daily_bertha_support_usd  # By looking at only USD, will keep selling low while $trunk is low
@@ -338,7 +349,7 @@ for run in range(int(model_setup['run_days'])):
     # Sell up to 75% of redemption pool funds
     max_pct_drop = 0.1 * min(1, em_data['trunk_busd_lp'].price)
     trunk_to_sell = ((1 + max_pct_drop) ** 0.5 - 1) * em_data['trunk_busd_lp'].token_bal['TRUNK'] + \
-        0.75 * em_data['redemption_pool']
+                    0.75 * em_data['redemption_pool']
     sold = 0
     # Where do sales come from.  Don't sell more than 10% of any holding in a day
     # Loose trunk in wallets first
