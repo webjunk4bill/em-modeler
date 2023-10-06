@@ -124,7 +124,7 @@ def get_em_data(*, read_blockchain: bool = False):
         pickle.dump(to_pickle, f)
         f.close()
     else:
-        f_o = open('chain_data/emData_2023-09-29 10:51.pkl', 'rb')  # TODO: figure out how to update this automatically
+        f_o = open('chain_data/emData_2023-10-06 13:31.pkl', 'rb')  # TODO: figure out how to update this automatically
         em_data = pickle.load(f_o)
         f_o.close()
 
