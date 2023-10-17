@@ -70,9 +70,9 @@ def em_plot_time(em_df):
                                sharex=False, sharey=False, grid=True)
     em_df['%bertha_growth'].plot(ax=axes[1, 0], ylabel='%',
                                  title='Weekly Treasury Growth', sharex=False, sharey=False, grid=True)
-    em_df['%liquid_debt_ratio'].plot(ax=axes[1, 1], ylabel='%',
-                                     title='EM Treasury to Liquid Debt Ratio',
-                                     sharex=False, sharey=False, grid=True)
+    em_df[['$bertha_sales', 'futures_busd_pool']].plot(ax=axes[1, 1], ylabel='$USD',
+                                                         title='Bertha Daily Expenses',
+                                                         sharex=False, sharey=False, grid=True)
     plt.tight_layout()
     plt.show()
     fig2.savefig('outputs/fig2_{0}.png'.format(dt.datetime.today()))

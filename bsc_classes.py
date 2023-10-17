@@ -556,6 +556,7 @@ class EMCashflow:
         self.out_nft = 0
         self.out_trunk = 0
         self.out_perf = 0
+        self.out_bertha = 0
         self.out_sell_volume = 0
         self._out_total = None
         self._cashflow = None
@@ -583,5 +584,6 @@ class EMCashflow:
             "out_nft": self.out_nft,
             "out_perf": self.out_perf,
             "out_trunk": self.out_trunk,
-            "sell_volume": self.out_sell_volume
+            "sell_volume": self.out_sell_volume,
+            "bertha_sells": self.out_bertha
         }

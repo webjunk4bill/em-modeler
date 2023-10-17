@@ -25,7 +25,7 @@ model_output = {}
 em_cashflow = bsc.EMCashflow()
 futures_done = False
 sunset_futures = False
-new_buffer_pool_apr = 0.05 / 365
+new_buffer_pool_apr = 0.0 / 365
 
 # Create and Run Model
 for run in range(int(model_setup['run_days'])):
@@ -151,6 +151,7 @@ for run in range(int(model_setup['run_days'])):
     busd_received = bsc.elephant_sell(redemption_funds, em_data['ele_busd_lp'], em_data['ele_bnb_lp'],
                                       em_data['bnb'].usd_value)  # Sell Elephant
     em_cashflow.out_trunk += busd_received
+    em_cashflow.out_bertha += busd_received
     redeem_wait_days = int(em_data['redemption_queue'] / busd_received) + 1
     em_data['redemption_pool'] += busd_received  # Add BUSD funds to the redemption pool
     if em_data['redemption_queue'] >= em_data['redemption_pool']:
@@ -168,6 +169,7 @@ for run in range(int(model_setup['run_days'])):
     busd_received = bsc.elephant_sell(support_funds, em_data['ele_busd_lp'], em_data['ele_bnb_lp'],
                                       em_data['bnb'].usd_value)
     em_cashflow.out_trunk += busd_received
+    em_cashflow.out_bertha += busd_received
     trunk_purchased = em_data['trunk_busd_lp'].update_lp('BUSD', busd_received)  # Buy Trunk off PCS
     minted = em_data['trumpet'].mint_trumpet(trunk_purchased)  # Mint trumpet and burn it
     em_data['trumpet'].burn_trumpet(minted)
@@ -189,9 +191,11 @@ for run in range(int(model_setup['run_days'])):
     # This should smooth out the growth and avoid significant sell-offs to pay futures debt later on
     # This is not treated as cashflow because it's still part of the treasury value
     new_buffer_payout_ele = em_data['bertha'] * new_buffer_pool_apr
-    em_data['futures_busd_pool'] += bsc.elephant_sell(new_buffer_payout_ele, em_data['ele_busd_lp'],
-                                                      em_data['ele_bnb_lp'],
-                                                      em_data['bnb'].usd_value)
+    busd_received = bsc.elephant_sell(new_buffer_payout_ele, em_data['ele_busd_lp'],
+                                      em_data['ele_bnb_lp'],
+                                      em_data['bnb'].usd_value)
+    em_data['futures_busd_pool'] += busd_received
+    em_cashflow.out_bertha += busd_received
 
     # Handle Yield Engines -------------------------------------------------------------------------------------------
     # ------ Process Futures Stakes ------
@@ -236,8 +240,10 @@ for run in range(int(model_setup['run_days'])):
     else:  # Sell Elephant to replenish pool.  Sell a 10% Buffer
         to_sell = futures_claimed * 1.1 / average_ele_price  # get num Elephant to sell
         em_data['bertha'] -= to_sell  # remove elephant from Bertha
-        em_data['futures_busd_pool'] += bsc.elephant_sell(to_sell, em_data['ele_busd_lp'], em_data['ele_bnb_lp'],
-                                                          em_data['bnb'].usd_value)  # sell ELEPHANT
+        busd_received = bsc.elephant_sell(to_sell, em_data['ele_busd_lp'], em_data['ele_bnb_lp'],
+                                          em_data['bnb'].usd_value)  # sell ELEPHANT
+        em_data['futures_busd_pool'] += busd_received
+        em_cashflow.out_bertha += busd_received
         em_data['futures_busd_pool'] -= futures_claimed  # payout claims
 
     # ------ Process Stampede Stakes ------
@@ -390,6 +396,8 @@ for run in range(int(model_setup['run_days'])):
                 + em_data['ele_busd_lp'].token_bal['BUSD'] + em_data['ele_bnb_lp'].token_bal['WBNB'] * em_data[
                     'bnb'].usd_value \
                 + em_data['busd_treasury'] + em_data['trunk_treasury'] * em_data['trunk_busd_lp'].price
+    liquidity = 2 * em_data['trunk_busd_lp'].token_bal['BUSD'] + 2 * em_data['ele_bnb_lp'].token_bal['WBNB'] * em_data[
+        'bnb'].usd_value
     em_market_cap = 1E15 * average_ele_price
     em_growth = em_assets - em_assets_day_start  # How much did the asset sheet grow
     daily_yield_usd = presale_daily_yield * em_data['trunk_busd_lp'].price + futures_available
@@ -405,11 +413,13 @@ for run in range(int(model_setup['run_days'])):
     daily_snapshot = {
         "$em_market_cap/m": em_market_cap / 1E6,
         "$em_assets/m": em_assets / 1E6,
+        "$em_liquidity/m": liquidity / 1E6,
         "$em_asset_growth/m": em_growth / 1E6,
         "%em_asset_growth": em_growth / em_assets * 100,
         "$em_cashflow": em_cashflow.cashflow,
         "$em_income": em_cashflow.in_total,
         "$em_outflow": em_cashflow.out_total,
+        "$bertha_sales": em_cashflow.out_bertha,
         "$funds_in/m": running_inflows / 1E6,
         "$funds_out/m": running_outflows / 1E6,
         "bertha/T": em_data['bertha'] / 1E12,
