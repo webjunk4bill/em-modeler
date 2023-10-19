@@ -4,20 +4,22 @@ This file should be used to set the parameters required to run the model
 import numpy as np
 import pandas as pd
 from datetime import date
+import pickle
 
 
 def setup_run(end_date, bnb_price):
     """
     Function returns a dictionary, model_setup, which contains all the parameters needed to execute the simulation run
     """
-    # Initialize dictionary with governance contracts
-    # get data from dune 30 day dashboard (Governance)
-    avg_bertha = 167.2E12
-    peg_support = 295.5E9
-    redeem_support = 495.7E9
+
+    # Get Dune Data
+    f_o = open('chain_data/DuneData_2023-10-19 09:12.pkl', 'rb')
+    dune = pickle.load(f_o)
+    f_o.close()
+
     # All APRs are the daily equivalent
-    model_setup = {'trunk_support_apr': peg_support / avg_bertha / 30,
-                   'redemption_support_apr': redeem_support / avg_bertha / 30,
+    model_setup = {'trunk_support_apr': dune['trunk_support_apr'],
+                   'redemption_support_apr': dune['redemption_support_apr'],
                    'elephant_buyback_apr': 0.5,
                    'nft_royalty_apr': 0.01 / 365,
                    'performance_support_apr': 0.01 / 365,
@@ -26,37 +28,15 @@ def setup_run(end_date, bnb_price):
     model_setup['bertha_outflows'] = model_setup['trunk_support_apr'] + model_setup['redemption_support_apr'] + \
                                      model_setup['nft_royalty_apr'] + model_setup['performance_support_apr']
 
-    # Incoming Funds
-    # These are starting values.  They can be adjusted during the run as needed (FOMO, etc.)
-    # Get data from Dune dashboards (Governance sheet) and LP
-    ele_treasury_in_usd = 3.1E6 / 30  # Total 30d in from governance page
-    # Use %-ages from the governance page
-    nft_mint_volume = 12.5 / 100 * ele_treasury_in_usd
-    nft_sell_taxes = 1.23 / 100 * ele_treasury_in_usd
-    buyback = 59.9 / 100 * ele_treasury_in_usd
-    bwb_taxes = 26.4 / 100 * ele_treasury_in_usd
-    # Get Buy / Sell Volume from LP page.  Need to export to CSV and average to get 30d average
-    avg_nb_buy_volume = 476000 - buyback - nft_mint_volume  # "non-Bertha" buy volume since traced separately
-    avg_sell_volume = 98000
-    buy_sell_ratio = avg_nb_buy_volume / (avg_sell_volume + avg_nb_buy_volume)
-    bwb_volume = bwb_taxes / 0.08 * buy_sell_ratio  # Bertha collects 8% tax
-    swb_volume = bwb_taxes / 0.08 * (1 - buy_sell_ratio)
-    market_buy_volume = avg_nb_buy_volume - bwb_volume
-    market_sell_volume = avg_sell_volume - swb_volume
     buy_trunk_pcs = 15000  # Trunk buys off PCS.  Assume goes to wallets for arbitrages, swing trading
     # Futures, estimated based off new wallets and busd_treasury inflows
     # This doesn't always match buyback due to the trailing nature of only using 50% of the busd treasury for buybacks
-    busd_treasury_in = 1.9E6 / 30
+    busd_treasury_in = 2.4E6 * 0.97 / 30  # From governance page on dune
     # Get new wallets from the dune holders page
-    new_wallets = int(76 / 7)
+    new_wallets = int(54 / 7)
     new_deposit = busd_treasury_in / new_wallets
-    futures = {'f_compounds': 90,
-               'f_compound_usd': 200,
-               'f_claims_usd': 300,
-               'f_days_running': 237
-               }
+    model_setup['f_compound_usd'] = 200
     model_setup['f_claim_wait'] = 120
-    model_setup = {**model_setup, **futures}
     buy_depot = 0
 
     # Platform Sales
@@ -95,12 +75,12 @@ def setup_run(end_date, bnb_price):
     temp_ele_s = pd.Series(ele_buy_multiplier, index=ele_sparse_range)
     temp_ele_s[end_date] = 1.95
     temp_ele_full = pd.Series(temp_ele_s, index=full_range).interpolate()
-    model_setup['bwb_volume'] = np.multiply(temp_ele_full, bwb_volume)  # This in $USD
-    model_setup['swb_volume'] = np.multiply(temp_ele_full, swb_volume)
-    model_setup['market_buy_volume'] = np.multiply(temp_ele_full, market_buy_volume)
-    model_setup['market_sell_volume'] = np.multiply(temp_ele_full, market_sell_volume)
-    model_setup['nft_mint_volume'] = np.multiply(temp_ele_full, nft_mint_volume)
-    model_setup['nft_sales_revenue'] = np.multiply(temp_ele_full, nft_sell_taxes)
+    model_setup['bwb_volume'] = np.multiply(temp_ele_full, dune['bwb_volume'])  # This in $USD
+    model_setup['swb_volume'] = np.multiply(temp_ele_full, dune['swb_volume'])
+    model_setup['market_buy_volume'] = np.multiply(temp_ele_full, dune['pcs_buy_volume'])
+    model_setup['market_sell_volume'] = np.multiply(temp_ele_full, dune['pcs_sell_volume'])
+    model_setup['nft_mint_volume'] = np.multiply(temp_ele_full, dune['nft_mint_volume'])
+    model_setup['nft_sales_revenue'] = np.multiply(temp_ele_full, dune['nft_sell_taxes'])
 
     # Debt producing growth
     income_multiplier = [1, 1.25, 1.57]

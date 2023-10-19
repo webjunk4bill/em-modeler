@@ -18,8 +18,22 @@ def get_em_data(*, read_blockchain: bool = False):
     This function initializes all the EM Platform data
     It will return a dictionary with all the parameter values
     """
+    # initialize main dict
     em_data = {}
+
     if read_blockchain:  # Will use the moralis APIs to query the blockchian.  Takes 10 sec or so.
+        # Get Dune Data
+        f_o = open('chain_data/DuneData_2023-10-19 09:12.pkl', 'rb')
+        dune = pickle.load(f_o)
+        f_o.close()
+
+        # Check to ensure Futures starting wallets are in line with current contract balance
+        c_futures = bsc.ContractReader('chain_data/stampede_abi.json', addr_contracts.futures_contract)
+        em_data['futures_info'] = c_futures.get_futures_info()
+        if dune['futures_tvl'] < 0.975 * em_data['futures_info']['balance']:
+            raise Exception('Dune futures info is stale.  TVL on Dune is more than 2.5% below contract read.')
+        em_data['futures'] = dune['futures']
+
         # get EM info (this can be done automatically)
         # TODO: Convert Moralis calls to web3 module.  Seems a lot faster.
         # get LPs
@@ -42,8 +56,6 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['start_trunk_price'] = em_data['trunk_busd_lp'].price
         em_data['start_bnb_price'] = em_data['bnb'].usd_value
         # Read Contract Info
-        c_futures = bsc.ContractReader('chain_data/stampede_abi.json', addr_contracts.futures_contract)
-        em_data['futures_info'] = c_futures.get_futures_info()
         c_stampede = bsc.ContractReader('chain_data/stampede_abi.json', addr_contracts.stampede_contract)
         em_data['stampede_info'] = c_stampede.get_futures_info()
         c_farms = bsc.ContractReader('chain_data/farms_abi.json', addr_contracts.elephant_farms)
@@ -54,33 +66,7 @@ def get_em_data(*, read_blockchain: bool = False):
         c_unlimited = bsc.ContractReader('chain_data/unlimited_abi.json', addr_contracts.nft_contract)
         em_data['nft'] = bsc.Unlimited(c_unlimited.call_read_single_obj('totalSupply'))
         em_data['elephant_wallets'] = 1E15 - em_data['graveyard'] - em_data['bertha'] - \
-            em_data['ele_busd_lp'].token_bal['ELEPHANT'] - em_data['ele_bnb_lp'].token_bal['ELEPHANT']
-
-        # Set up Futures Stakes - Data imported from Dune
-        # Requires manual export of csv file from "Top Wallets" query.
-        # Data has missing entries, and needs cleanup
-        f_data = pd.read_csv('chain_data/futures_dune.csv')
-        if f_data['TVL'].sum() < 0.975 * em_data['futures_info']['balance']:
-            raise Exception('Dune futures info is stale.  TVL on Dune is more than 2.5% below contract read.')
-        futures = []
-        i = 0
-        for row in f_data.itertuples():
-            if row.TVL <= 0:
-                break
-            futures.append(bsc.YieldEngineV6(row.TVL, 0.005))
-            if not m.isnan(row.compound_value):
-                futures[i].compounds = row.compound_value
-            if not m.isnan(row.claim_value):
-                futures[i].claimed = row.claim_value * -1
-            if not m.isnan(row.since_first_deposit):
-                futures[i].total_days = row.since_first_deposit
-            futures[i].update_rate_limiter()
-            if not m.isnan(row.since_last_withdrawal) and m.isnan(row.since_last_compound):
-                futures[i].pass_days(min(row.since_last_withdrawal, row.since_last_compound))
-            if m.isnan(futures[i].available):
-                raise Exception('NaN found!')
-            i += 1
-        em_data['futures'] = futures
+                                      em_data['ele_busd_lp'].token_bal['ELEPHANT'] - em_data['ele_bnb_lp'].token_bal['ELEPHANT']
 
         # Set up Stampede Stakes - Data imported from Dune
         s_data = pd.read_csv('chain_data/stampede_dune.csv')
@@ -124,7 +110,7 @@ def get_em_data(*, read_blockchain: bool = False):
         pickle.dump(to_pickle, f)
         f.close()
     else:
-        f_o = open('chain_data/emData_2023-10-06 13:31.pkl', 'rb')  # TODO: figure out how to update this automatically
+        f_o = open('chain_data/emData_2023-10-19 09:13.pkl', 'rb')  # TODO: figure out how to update this automatically
         em_data = pickle.load(f_o)
         f_o.close()
 
