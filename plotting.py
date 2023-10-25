@@ -62,21 +62,6 @@ def em_plot_time(em_df):
     plt.show()
     fig1.savefig('outputs/fig1_{0}.png'.format(dt.datetime.today()))
 
-    # --- cashflow
-    fig2, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=2)
-    em_df[['$em_market_cap/m']].plot(ax=axes[0, 0], ylabel='$ millions',
-                                     title='EM Market Cap', sharex=False, sharey=False, grid=True)
-    em_df['$em_cashflow'].plot(ax=axes[0, 1], ylabel='$USD', title='Elephant Money Cashflow',
-                               sharex=False, sharey=False, grid=True)
-    em_df['%bertha_growth'].plot(ax=axes[1, 0], ylabel='%',
-                                 title='Weekly Treasury Growth', sharex=False, sharey=False, grid=True)
-    em_df[['$bertha_sales', 'futures_busd_pool']].plot(ax=axes[1, 1], ylabel='$USD',
-                                                         title='Bertha Daily Expenses',
-                                                         sharex=False, sharey=False, grid=True)
-    plt.tight_layout()
-    plt.show()
-    fig2.savefig('outputs/fig2_{0}.png'.format(dt.datetime.today()))
-
     # debts
     fig3, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=3)
     em_df['futures_owed/m'].plot(ax=axes[0, 0], ylabel='$millions', title='Futures TVL',
@@ -96,8 +81,8 @@ def em_plot_time(em_df):
 
     # --- Daily in/out detail
     fig4, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=3)
-    em_df[['in_futures', 'out_futures']].plot(ax=axes[0, 0], ylabel='$USD', title='Daily Futures In/Out',
-                                              sharex=False, sharey=False, grid=True)
+    em_df[['in_futures', 'daily_futures_claimed']].plot(ax=axes[0, 0], ylabel='$USD', title='Daily Futures In/Out',
+                                                        sharex=False, sharey=False, grid=True)
     em_df[['in_nft', 'out_nft']].plot(ax=axes[0, 1], ylabel='$USD', title='Daily NFTs In/Out',
                                       sharex=False, sharey=False, grid=True)
     em_df[['in_trunk', 'out_trunk']].plot(ax=axes[0, 2], ylabel='$USD', title='Daily Trunk In/Out (support)',
@@ -122,8 +107,8 @@ def em_plot_time(em_df):
                                           sharex=False, sharey=False, grid=True)
     em_df['futures_owed/m'].plot(ax=axes[0, 1], ylabel='$millions', title='Futures TVL',
                                  sharex=False, sharey=False, grid=True)
-    em_df[['in_futures', 'out_futures']].plot(ax=axes[1, 1], ylabel='$USD', title='Daily Futures In/Out',
-                                              sharex=False, sharey=False, grid=True)
+    em_df[['in_futures', 'daily_futures_claimed']].plot(ax=axes[1, 1], ylabel='$USD', title='Daily Futures In/Out',
+                                                        sharex=False, sharey=False, grid=True)
     em_df['stampede_owed/m'].plot(ax=axes[0, 2], ylabel='Trunk (millions)', title='Stampede TVL (Trunk)',
                                   sharex=False, sharey=False, grid=True)
     em_df['$em_cashflow'].plot(ax=axes[1, 2], ylabel='$USD', title='Elephant Money Cashflow',
@@ -133,20 +118,31 @@ def em_plot_time(em_df):
     plt.show()
     fig5.savefig('outputs/fig5_{0}.png'.format(dt.datetime.today()))
 
+    # --- Cashflow
+    em_df['net_bertha_purchases'] = np.subtract(em_df['bertha_buys'], em_df['bertha_sells'])
+    em_df['net_market_purchases'] = np.subtract(em_df['buy_volume'], em_df['sell_volume'])
+    em_df['net_purchases'] = np.add(em_df['net_bertha_purchases'], em_df['net_market_purchases'])
+    fig6, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=3)
+    em_df[['$elephant/m', '$trunk']].plot(ax=axes[0, 0], ylabel='$USD', title='Token Price',
+                                          sharex=False, sharey=False, grid=True)
+    em_df[['net_bertha_purchases',
+           'net_market_purchases',
+           'net_purchases']].plot(ax=axes[0, 1], ylabel='$ USD', title='Net Elephant Purchases', sharex=False,
+                                  sharey=False, grid=True)
+    em_df['daily_futures_claimed'].plot(ax=axes[1, 0], ylabel='$ USD',
+                                        title='Daily Futures Claims', sharex=False, sharey=False, grid=True)
+    em_df['futures_busd_pool'].plot(ax=axes[1, 2], ylabel='$ USD',
+                                    title='Futures Buffer Pool', sharex=False, sharey=False, grid=True)
+    em_df['$em_cashflow'].plot(ax=axes[0, 2], ylabel='$ USD',
+                               title='Overall cashflow (inc market volume)', sharex=False, sharey=False, grid=True)
+    em_df['futures_owed/m'].plot(ax=axes[1, 1], ylabel='$ USD (millions)',
+                                 title='Futures TVL', sharex=False, sharey=False, grid=True)
 
-'''
-    fig4, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=2)
-    em_df['bertha/T'].plot(ax=axes[0, 0], ylabel='Trillion Tokens', title='Bertha Size (Trillion Tokens)',
-                           sharex=False, sharey=False, grid=True)
-    em_df['daily_ele_growth'].plot(ax=axes[0, 1], ylabel='% Growth', title='Daily Elephant Purchase Growth',
-                                   sharex=False, sharey=False, grid=True)
-    em_df['daily_futures_growth'].plot(ax=axes[1, 0], ylabel='% Growth',
-                                       title='Daily Futures Growth', grid=True)
-    em_df['daily_total_growth'].plot(ax=axes[1, 1], ylabel='% Growth', title='Total Platform Daily Growth', grid=True)
-
+    plt.tight_layout()
     plt.show()
-    fig4.savefig('outputs/fig4_{0}.png'.format(dt.datetime.today()))
-'''
+    fig6.savefig('outputs/fig6_{0}.png'.format(dt.datetime.today()))
+
+
 # df = pd.read_csv('outputs/output_time.csv', index_col=0, parse_dates=True)
 # df = pd.read_csv('outputs/output_funds.csv', index_col=0)
 # em_plot_time(df)
