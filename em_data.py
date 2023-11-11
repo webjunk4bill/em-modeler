@@ -23,7 +23,7 @@ def get_em_data(*, read_blockchain: bool = False):
 
     if read_blockchain:  # Will use the moralis APIs to query the blockchian.  Takes 10 sec or so.
         # Get Dune Data
-        f_o = open('chain_data/DuneData_2023-10-19 09:12.pkl', 'rb')
+        f_o = open('chain_data/DuneData.pkl', 'rb')
         dune = pickle.load(f_o)
         f_o.close()
 
@@ -95,8 +95,8 @@ def get_em_data(*, read_blockchain: bool = False):
         # get EM Manual Info
         em_data['farms_max_apr'] = 1.25 / 365
         em_data['trunk_support_pool'] = 0
-        em_data['redemption_queue'] = 2.61E6
-        em_data['trunk_supply'] = 34.207E6
+        em_data['redemption_queue'] = 3.02E6
+        em_data['trunk_supply'] = 35.110E6
         em_data['trunk_held_wallets'] = em_data['trunk_supply'] * 0.09  # Estimate based off bscscan token holders:
         # https://bscscan.com/token/tokenholderchart/0xdd325C38b12903B727D16961e61333f4871A70E0
         em_data['trunk_liquid_debt'] = em_data['trumpet'].backing + em_data['trunk_held_wallets'] + \
@@ -106,11 +106,14 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['trunk_total_debt'] = em_data['trunk_liquid_debt'] + em_data['stampede_info']['balance']
 
         to_pickle = em_data
-        f = open('chain_data/emData_{0}.pkl'.format(dt.datetime.now().strftime('%Y-%m-%d %H:%M')), 'wb')
-        pickle.dump(to_pickle, f)
-        f.close()
+        f1 = open('chain_data/emData_{0}.pkl'.format(dt.datetime.now().strftime('%Y-%m-%d %H:%M')), 'wb')
+        f2 = open('chain_data/emData.pkl', 'wb')
+        pickle.dump(to_pickle, f1)
+        pickle.dump(to_pickle, f2)
+        f1.close()
+        f2.close()
     else:
-        f_o = open('chain_data/emData_2023-10-19 09:13.pkl', 'rb')  # TODO: figure out how to update this automatically
+        f_o = open('chain_data/emData.pkl', 'rb')
         em_data = pickle.load(f_o)
         f_o.close()
 

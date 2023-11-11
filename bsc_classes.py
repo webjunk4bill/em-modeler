@@ -554,7 +554,8 @@ class EMCashflow:
         self.in_buybacks = 0
         self._in_total = None
         self._bertha_buys = None
-        self.out_futures = 0
+        self.out_futures_sell = 0
+        self.out_futures_buffer = 0
         self.out_nft = 0
         self.out_trunk = 0
         self.out_perf = 0
@@ -573,11 +574,11 @@ class EMCashflow:
 
     @property
     def out_total(self):
-        return self.out_nft + self.out_perf + self.out_futures + self.out_trunk + self.out_sell_volume
+        return self.out_nft + self.out_perf + self.out_futures_buffer + self.out_trunk + self.out_sell_volume
 
     @property
     def bertha_sells(self):
-        return self.out_nft + self.out_perf + self.out_futures + self.out_trunk
+        return self.out_nft + self.out_perf + self.out_futures_sell + self.out_trunk
 
     @property
     def cashflow(self):
@@ -591,7 +592,6 @@ class EMCashflow:
             "in_trunk": self.in_trunk,
             "$em_income": self.in_total,
             "buy_volume": self.in_buy_volume,
-            "out_futures": self.out_futures,
             "out_nft": self.out_nft,
             "out_perf": self.out_perf,
             "out_trunk": self.out_trunk,

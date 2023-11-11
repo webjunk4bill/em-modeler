@@ -13,7 +13,7 @@ def setup_run(end_date, bnb_price):
     """
 
     # Get Dune Data
-    f_o = open('chain_data/DuneData_2023-10-19 09:12.pkl', 'rb')
+    f_o = open('chain_data/DuneData.pkl', 'rb')
     dune = pickle.load(f_o)
     f_o.close()
 
@@ -65,7 +65,7 @@ def setup_run(end_date, bnb_price):
     bnb_price_movement = [bnb_price]  # This will be split over the run period.
     bnb_sparse_range = pd.interval_range(model_setup['day'], end_date, len(bnb_price_movement)).left
     temp_bnb_s = pd.Series(bnb_price_movement, index=bnb_sparse_range)
-    temp_bnb_s[end_date] = 225  # final BNB price
+    temp_bnb_s[end_date] = 300  # final BNB price
     model_setup['bnb_price_s'] = pd.Series(temp_bnb_s, index=full_range).interpolate()  # get a daily price increase
 
     # --- EM Growth ---

@@ -37,6 +37,8 @@ for run in range(int(model_setup['run_days'])):
     today = model_setup['day']
     tomorrow = model_setup['day'] + pd.Timedelta(1, "d")
     yesterday = model_setup['day'] - pd.Timedelta("1d")
+    if em_data['bertha'] < 1E12:
+        break  # stop the loop when Bertha is exhausted (< 1T tokens)
     # Daily Bertha Support ---------------------------------------------------------------------
     average_ele_price = bsc.get_ave_ele(em_data['ele_busd_lp'], em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
     daily_bertha_support_usd = em_data['bertha'] * average_ele_price * (model_setup['bertha_outflows'] +
@@ -194,7 +196,7 @@ for run in range(int(model_setup['run_days'])):
                                       em_data['ele_bnb_lp'],
                                       em_data['bnb'].usd_value)
     em_data['futures_busd_pool'] += busd_received
-    em_cashflow.out_futures += busd_received
+    em_cashflow.out_futures_sell += busd_received
 
     # Handle Yield Engines -------------------------------------------------------------------------------------------
     # ------ Process Futures Stakes ------
@@ -236,14 +238,16 @@ for run in range(int(model_setup['run_days'])):
     # Only track "out" futures cashflow if Elephant needs to be sold
     if em_data['futures_busd_pool'] >= futures_claimed:
         em_data['futures_busd_pool'] -= futures_claimed  # payout claims
+        em_cashflow.out_futures_buffer += futures_claimed
     else:  # Sell Elephant to replenish pool.  Sell a 10% Buffer
         to_sell = futures_claimed * 1.1 / average_ele_price  # get num Elephant to sell
         em_data['bertha'] -= to_sell  # remove elephant from Bertha
         busd_received = bsc.elephant_sell(to_sell, em_data['ele_busd_lp'], em_data['ele_bnb_lp'],
                                           em_data['bnb'].usd_value)  # sell ELEPHANT
         em_data['futures_busd_pool'] += busd_received
-        em_cashflow.out_futures += busd_received
+        em_cashflow.out_futures_sell += busd_received
         em_data['futures_busd_pool'] -= futures_claimed  # payout claims
+        em_cashflow.out_futures_buffer += futures_claimed
 
     # ------ Process Stampede Stakes ------
     # At Peg, go with standard 2:1 strategy, but favor waiting while Trunk is under Peg
