@@ -31,9 +31,9 @@ def setup_run(end_date, bnb_price):
     buy_trunk_pcs = 15000  # Trunk buys off PCS.  Assume goes to wallets for arbitrages, swing trading
     # Futures, estimated based off new wallets and busd_treasury inflows
     # This doesn't always match buyback due to the trailing nature of only using 50% of the busd treasury for buybacks
-    busd_treasury_in = 2.4E6 * 0.97 / 30  # From governance page on dune
+    busd_treasury_in = 4E6 * 0.99 / 30  # From governance page on dune
     # Get new wallets from the dune holders page
-    new_wallets = int(54 / 7)
+    new_wallets = int(49 / 7)
     new_deposit = busd_treasury_in / new_wallets
     model_setup['f_compound_usd'] = 200
     model_setup['f_claim_wait'] = 120
@@ -70,10 +70,10 @@ def setup_run(end_date, bnb_price):
 
     # --- EM Growth ---
     # Non-Debt producing Growth
-    ele_buy_multiplier = [1, 1.25, 1.57]
+    ele_buy_multiplier = [1]
     ele_sparse_range = pd.interval_range(model_setup['day'], end_date, len(ele_buy_multiplier)).left
     temp_ele_s = pd.Series(ele_buy_multiplier, index=ele_sparse_range)
-    temp_ele_s[end_date] = 1.95
+    temp_ele_s[end_date] = 1
     temp_ele_full = pd.Series(temp_ele_s, index=full_range).interpolate()
     model_setup['bwb_volume'] = np.multiply(temp_ele_full, dune['bwb_volume'])  # This in $USD
     model_setup['swb_volume'] = np.multiply(temp_ele_full, dune['swb_volume'])
@@ -83,10 +83,10 @@ def setup_run(end_date, bnb_price):
     model_setup['nft_sales_revenue'] = np.multiply(temp_ele_full, dune['nft_sell_taxes'])
 
     # Debt producing growth
-    income_multiplier = [1, 1.25, 1.57]
+    income_multiplier = [1]
     inc_sparse_range = pd.interval_range(model_setup['day'], end_date, len(income_multiplier)).left
     temp_income_s = pd.Series(income_multiplier, index=inc_sparse_range)
-    temp_income_s[end_date] = 1.95
+    temp_income_s[end_date] = 1
     temp_income_full = pd.Series(temp_income_s, index=full_range).interpolate()
     model_setup['buy_trunk_pcs'] = np.multiply(temp_income_full, buy_trunk_pcs)
     model_setup['buy_depot'] = np.multiply(temp_income_full, buy_depot)

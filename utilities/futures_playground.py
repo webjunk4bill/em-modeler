@@ -3,10 +3,12 @@ import pandas as pd
 import pickle
 
 funds_in = 0
-engine = bsc.BUSDFuturesEngine(funds_in, 0.005)
-engine.balance = 92100
-engine.deposits = 37000
-engine.compounds = 55100
+engine = bsc.YieldEngineV6(funds_in, 0.005)
+engine.balance = 29178
+engine.deposits = 8200
+engine.claimed = 0
+# Website shows combined claims and compounds.  A true claim is added to claimed and subtracted from balance
+engine.compounds = (engine.deposits + engine.claimed - engine.balance) / 2
 engine.daily_payout = engine.balance * 0.005
 data = {'claimed': [0],
         'balance': [0],
@@ -21,11 +23,11 @@ initial_count = 0
 
 # schedule = ['dep', 'dep', 'dep', 'dep', 'claim', 'claim', 'claim']
 schedule = {  # Start from T = 0, always deposit first, than claim, then will reset
-    "initial": 60,
-    "dep": 20,
-    "claim": 30,
+    "initial": 0,
+    "dep": 15,
+    "claim": 25,
 }
-days = round(365 * 3)
+days = round(365 * 2)
 cycles = round(days / len(schedule)) + 1
 roll_claim = []
 i = 1
