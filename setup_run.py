@@ -31,9 +31,9 @@ def setup_run(end_date, bnb_price):
     buy_trunk_pcs = 15000  # Trunk buys off PCS.  Assume goes to wallets for arbitrages, swing trading
     # Futures, estimated based off new wallets and busd_treasury inflows
     # This doesn't always match buyback due to the trailing nature of only using 50% of the busd treasury for buybacks
-    busd_treasury_in = 4E6 * 0.99 / 30  # From governance page on dune
+    busd_treasury_in = 3.7E6 * 0.991 / 30  # From governance page on dune
     # Get new wallets from the dune holders page
-    new_wallets = int(49 / 7)
+    new_wallets = int(44 / 7)
     new_deposit = busd_treasury_in / new_wallets
     model_setup['f_compound_usd'] = 200
     model_setup['f_claim_wait'] = 120
@@ -65,7 +65,7 @@ def setup_run(end_date, bnb_price):
     bnb_price_movement = [bnb_price]  # This will be split over the run period.
     bnb_sparse_range = pd.interval_range(model_setup['day'], end_date, len(bnb_price_movement)).left
     temp_bnb_s = pd.Series(bnb_price_movement, index=bnb_sparse_range)
-    temp_bnb_s[end_date] = 300  # final BNB price
+    temp_bnb_s[end_date] = 650  # final BNB price
     model_setup['bnb_price_s'] = pd.Series(temp_bnb_s, index=full_range).interpolate()  # get a daily price increase
 
     # --- EM Growth ---

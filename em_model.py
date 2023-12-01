@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from numpy import random
 import bsc_classes as bsc
-from plotting import em_plot_time
+from plotting import em_plot_time_subset, em_plot_time
 from setup_run import setup_run
 from em_data import get_em_data
 
@@ -476,5 +476,5 @@ for run in range(int(model_setup['run_days'])):
 
 df_model_output = pd.DataFrame(model_output).T
 df_model_output.to_csv('outputs/output_time.csv')
-em_plot_time(df_model_output)
+em_plot_time_subset(df_model_output)
 print("Done")

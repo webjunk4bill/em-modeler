@@ -94,13 +94,11 @@ f_data['Wd [BUSD]'] = f_data['Wd [BUSD]'].apply(convert_currency_string_to_numer
 f_data['1st Dep [d]'] = f_data['1st Dep [d]'].fillna(0)
 f_data['Last Wd [d]'] = f_data['Last Wd [d]'].fillna(0)
 f_data['Last Comp [d]'] = f_data['Last Comp [d]'].fillna(0)
-dune_data['futures_tvl'] = f_data['Bal [BUSD]'].sum()
-
-df = pd.Series(dune_data)
-df.to_csv('chain_data/DuneData_{0}.csv'.format(dt.datetime.now().strftime('%Y-%m-%d %H:%M')))
+# dune_data['futures_tvl'] = f_data['Bal [BUSD]'].sum()
 
 futures = []
 i = 0
+tvl = 0
 for row in f_data.iterrows():
     if row[1]['Bal [BUSD]'] <= 0:
         pass
@@ -116,7 +114,12 @@ for row in f_data.iterrows():
     futures[i].pass_days(min(row[1]['Last Wd [d]'], row[1]['Last Comp [d]']))
     if m.isnan(futures[i].available):
         raise Exception('NaN found!')
+    tvl += row[1]['Bal [BUSD]']
     i += 1
+
+dune_data['futures_tvl'] = tvl
+df = pd.Series(dune_data)
+df.to_csv('chain_data/DuneData_{0}.csv'.format(dt.datetime.now().strftime('%Y-%m-%d %H:%M')))
 dune_data['futures'] = futures
 
 f1 = open('chain_data/DuneData_{0}.pkl'.format(dt.datetime.now().strftime('%Y-%m-%d %H:%M')), 'wb')
