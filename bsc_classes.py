@@ -486,6 +486,121 @@ class YieldEngineV6:
             self.rate_limiter = 0.5
 
 
+class YieldEngineV8:
+    def __init__(self, deposit, rate=0.005):
+        """
+        This represents the new engine for BUSD Futures and Stampede
+        Deposit in $.  Day Rate in %/day.  Max Payout as a multiplier of the deposit.
+        Rate needs to be put in each day to calculate proper available
+        V8 adds a variable rate plus a personal bonus based on deposit frequency
+        """
+        self.deposits = deposit
+        self.balance = self.deposits
+        self.compounds = 0
+        self.rate_max = 0.005
+        self.group_rate = rate
+        self.rate_limiter = 1
+        self.max_payout = 2500000
+        self.max_balance = 1000000
+        self.max_available = 50000
+        self.available = 0
+        self.claimed = 0
+        self.daily_payout = deposit * rate
+        self.days_since_action = 0
+        self.days_since_deposit = 0
+        self.total_days = 0
+        self.last_action = 'deposit'
+        self._debt_burden = None
+        self._payout_remaining = None
+        self.bonus_rate = 0.002
+        self.decay_daily = self.bonus_rate / 45  # 45 day decay
+        self._bonus = None
+        self._rate = None
+
+    @property
+    def payout_remaining(self):
+        return self.max_payout - self.claimed
+
+    @property
+    def debt_burden(self):
+        return min(self.balance, self.payout_remaining)
+
+    @property
+    def bonus(self):
+        return max(0.0, self.bonus_rate - self.decay_daily * self.days_since_deposit)
+
+    @property
+    def rate(self):
+        return min(self.rate_max, self.group_rate + self.bonus)
+
+    def pass_days(self, days, rate=0.005):
+        """
+        Update the available balances based on number of days passed and check all limits
+        """
+        if self.claimed > self.max_payout:  # Wallet is done
+            pass
+        self.days_since_action += days
+        self.days_since_deposit += days
+        self.group_rate = rate
+        self.daily_payout = self.balance * self.rate * self.rate_limiter
+        self.total_days += days
+        self.available = min(
+            self.daily_payout * self.days_since_action,
+            self.payout_remaining,  # Can't exceed max payout
+            self.balance,  # Can't exceed balance
+            self.max_available  # Can't exceed max available
+        )
+
+    def claim(self):
+        """
+        Perform a claim of the available balance
+        """
+        self.last_action = 'claim'
+        claimed = self.available
+        self.claimed += claimed
+        if self.balance >= claimed:
+            self.balance -= claimed
+        else:
+            self.balance = 0
+        self.available = 0
+        self.days_since_action = 0
+
+        return claimed
+
+    def deposit(self, deposit):
+        """
+        Perform a new deposit
+        """
+        self.last_action = 'deposit'
+        if self.balance > self.max_balance:
+            pass
+        else:
+            self.compounds += self.available  # Track how much has been compounded
+            self.balance += deposit + self.available
+            if self.balance > self.max_balance:
+                self.balance = self.max_balance
+            self.available = 0
+            self.days_since_action = 0
+            self.days_since_deposit = 0
+            self.deposits += deposit
+            self.update_rate_limiter()
+
+    def update_rate_limiter(self):
+        """Determines the interest rate based on compounded balance and updates the daily payout"""
+        if self.compounds < 50000:
+            self.rate_limiter = 1
+        elif 50000 <= self.compounds < 249999:
+            self.rate_limiter = 0.9
+        elif 250000 <= self.compounds < 499999:
+            self.rate_limiter = 0.85
+        elif 500000 <= self.compounds < 749999:
+            self.rate_limiter = 0.75
+        elif 750000 <= self.compounds < 999999:
+            self.rate_limiter = 0.65
+        elif self.compounds >= 1000000:
+            self.rate_limiter = 0.5
+
+
 class Trumpet:
     """This Class defines the function of Trumpet"""
 
