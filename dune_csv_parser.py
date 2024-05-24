@@ -33,80 +33,70 @@ def convert_currency_string_to_numeric(currency_string):
 # Coming up with negative data sometimes
 
 dune_data = {}
-data_period = 30  # number of days, can't be more than 30
 
 # Get LP related data
-df = pd.read_csv('chain_data/lp_dune.csv', index_col='DAY', parse_dates=True)
-last_day = df.index[0]
-# Need to convert the values in the table to numerics
-df['BUY VOL'] = df['BUY VOL'].apply(convert_currency_string_to_numeric)
-df['SELL VOL'] = df['SELL VOL'].apply(convert_currency_string_to_numeric)
-# df[['BUY VOL', 'SELL VOL']].plot(title='LP Data', grid=True)
-buy_vol = df['BUY VOL'][:data_period].sum()  # Get most recent 30 days
-sell_vol = df['SELL VOL'][:data_period].sum()
-total_vol = sell_vol + buy_vol
+# This is from https://dune.com/elephantmoney/liquidity-pools-detailed
+df_buy = pd.read_csv('chain_data/em_dex_buy_vol.csv', index_col='category')
+df_sell = pd.read_csv('chain_data/em_dex_sell_vol.csv', index_col='category')
+df_buy_size = len(df_buy['value_usd']['BWB'])
+df_sell_size = len(df_sell['value_usd']['BWB'])
+dune_data['pcs_buy_volume'] = df_buy['value_usd']['PCS'].sum() / df_buy_size
+dune_data['pcs_sell_volume'] = df_sell['value_usd']['PCS'].sum() / df_sell_size
+dune_data['bwb_volume'] = df_buy['value_usd']['BWB'].sum() / df_buy_size
+dune_data['swb_volume'] = df_sell['value_usd']['BWB'].sum() / df_sell_size
+dune_data['total_buy_volume'] = df_buy['value_usd'].sum() / df_buy_size
+dune_data['total_sell_volume'] = df_sell['value_usd'].sum() / df_sell_size
+dune_data['futures_payouts'] = df_sell['value_usd']['Other'].sum() / df_sell_size
+dune_data['trunk_buys'] = df_sell['value_usd']['PegSupport'].sum() / df_sell_size
+dune_data['nft_sell_taxes'] = df_buy['value_usd']['NFT Royalties'].sum() / df_buy_size
+dune_data['Buyback'] = df_buy['value_usd']['BuyBack'].sum() / df_buy_size
+dune_data['em_cashflow'] = dune_data['total_buy_volume'] - dune_data['total_sell_volume']
+dune_data['market_cashflow'] = dune_data['pcs_buy_volume'] + dune_data['bwb_volume'] - \
+                               dune_data['pcs_sell_volume'] - dune_data['swb_volume']
+dune_data['bertha_cashflow'] = dune_data['em_cashflow'] - dune_data['market_cashflow']
+dune_data['%buy_bwb'] = dune_data['bwb_volume'] / dune_data['total_buy_volume'] * 100
+dune_data['%buy_pcs'] = dune_data['pcs_buy_volume'] / dune_data['total_buy_volume'] * 100
+df_fut = pd.read_csv('chain_data/futures_overview.csv', index_col='Date', parse_dates=True)
+# df_fut['%withdrawal'] = (df_fut['Withdrawals [USD]'].apply(convert_currency_string_to_numeric) /
+#                         df_fut['TVL [USD]'].apply(convert_currency_string_to_numeric) * 100).mean()
+dune_data['$fut_daily_tot_withdrawal'] = df_fut['Withdrawals [USD]'].apply(convert_currency_string_to_numeric).mean()
+dune_data['%fut_daily_tot_withdrawal'] = (df_fut['Withdrawals [USD]'].apply(convert_currency_string_to_numeric) /
+                                          df_fut['TVL [USD]'].apply(convert_currency_string_to_numeric) * 100).mean()
 
-# get 30d Governance data
-df = pd.read_csv('chain_data/governance_dune.csv', index_col='Day', parse_dates=True)
-bertha_out_usd = df['Daily OUT.1'].apply(convert_currency_string_to_numeric).sum()
-bertha_in_usd = df['Daily IN.1'].apply(convert_currency_string_to_numeric).sum()
-# bertha_in_ele = convert_currency_string_to_numeric(df['Total IN'][0])  # First entry is the 30d total
-# bertha_in_usd = convert_currency_string_to_numeric(df['Total IN.1'][0])
-# bertha_out_usd = convert_currency_string_to_numeric(df['Total OUT.1'][0])
-avg_treasury = df['Treasury'].apply(convert_currency_string_to_numeric).mean()  # Get Average Treasury Value
-
-df = pd.read_csv('chain_data/ele_out_pie.csv', index_col='category')
-dune_data['trunk_support_apr'] = df['balance']['PegSupport'] / avg_treasury / data_period
-dune_data['redemption_support_apr'] = df['balance']['Redemption'] / avg_treasury / data_period
-
+# TODO: Fix NFT Mint volme
+'''
 df = pd.read_csv('chain_data/bertha_in_30.csv', index_col='Date', parse_dates=True)
 sums = df.pivot(columns='category', values='daily')[:data_period].sum()  # Take a slice
 bwb_taxes = sums['BWB'] / sums.sum() * bertha_in_usd
 nft_mint_volume = sums['NFT Mint'] / sums.sum() * bertha_in_usd
 nft_sell_taxes = sums['NFT Royalties'] / sums.sum() * bertha_in_usd
 buyback = sums['BuyBack'] / sums.sum() * bertha_in_usd
-
-# Calculate various parameters
-market_buy_volume = buy_vol - buyback - nft_mint_volume
-market_sell_volume = sell_vol - bertha_out_usd
-market_total_volume = market_sell_volume + market_buy_volume
-bwb_volume = bwb_taxes / 0.08 * (market_buy_volume / market_total_volume)
-swb_volume = bwb_taxes / 0.08 * (market_sell_volume / market_total_volume)
-dune_data['pcs_buy_volume'] = (market_buy_volume - bwb_volume) / data_period
-dune_data['pcs_sell_volume'] = (market_sell_volume - swb_volume) / data_period
-dune_data['bwb_volume'] = bwb_volume / data_period
-dune_data['swb_volume'] = swb_volume / data_period
-dune_data['total_buy_volume'] = buy_vol / data_period
-dune_data['total_sell_volume'] = sell_vol / data_period
-dune_data['nft_mint_volume'] = nft_mint_volume / data_period
-dune_data['nft_sell_taxes'] = nft_sell_taxes / data_period
-dune_data['%buy_bertha'] = (buyback + nft_mint_volume) / buy_vol * 100
-dune_data['%buy_bwb'] = dune_data['bwb_volume'] / dune_data['total_buy_volume'] * 100
-dune_data['%buy_pcs'] = dune_data['pcs_buy_volume'] / dune_data['total_buy_volume'] * 100
+'''
+dune_data['nft_mint_volume'] = 0
 
 # Create Futures Stakes
 # Data has missing entries, and needs cleanup
 f_data = pd.read_csv('chain_data/futures_dune.csv', index_col='Wallet')
 # Clean Text
-f_data['Bal [BUSD]'] = f_data['Bal [BUSD]'].apply(convert_currency_string_to_numeric)
-f_data['Comp [BUSD]'] = f_data['Comp [BUSD]'].apply(convert_currency_string_to_numeric)
-f_data['Wd [BUSD]'] = f_data['Wd [BUSD]'].apply(convert_currency_string_to_numeric)
+f_data['Bal [USD]'] = f_data['Bal [USD]'].apply(convert_currency_string_to_numeric)
+f_data['Comp [USD]'] = f_data['Comp [USD]'].apply(convert_currency_string_to_numeric)
+f_data['Wd [USD]'] = f_data['Wd [USD]'].apply(convert_currency_string_to_numeric)
 f_data['1st Dep [d]'] = f_data['1st Dep [d]'].fillna(0)
 f_data['Last Wd [d]'] = f_data['Last Wd [d]'].fillna(0)
 f_data['Last Comp [d]'] = f_data['Last Comp [d]'].fillna(0)
-# dune_data['futures_tvl'] = f_data['Bal [BUSD]'].sum()
+# dune_data['futures_tvl'] = f_data['Bal [USD]'].sum()
 
 futures = []
 i = 0
 tvl = 0
 for row in f_data.iterrows():
-    if row[1]['Bal [BUSD]'] <= 0:
+    if row[1]['Bal [USD]'] <= 0:
         pass
-    futures.append(bsc.YieldEngineV6(row[1]['Bal [BUSD]'], 0.005))
-    if not m.isnan(row[1]['Comp [BUSD]']):
-        futures[i].compounds = row[1]['Comp [BUSD]']
-    if not m.isnan(row[1]['Wd [BUSD]']):
-        futures[i].claimed = row[1]['Wd [BUSD]']
+    futures.append(bsc.YieldEngineV6(row[1]['Bal [USD]'], 0.005))
+    if not m.isnan(row[1]['Comp [USD]']):
+        futures[i].compounds = row[1]['Comp [USD]']
+    if not m.isnan(row[1]['Wd [USD]']):
+        futures[i].claimed = row[1]['Wd [USD]']
 
     futures[i].total_days = row[1]['1st Dep [d]']
     futures[i].update_rate_limiter()
@@ -114,7 +104,7 @@ for row in f_data.iterrows():
     futures[i].pass_days(min(row[1]['Last Wd [d]'], row[1]['Last Comp [d]']))
     if m.isnan(futures[i].available):
         raise Exception('NaN found!')
-    tvl += row[1]['Bal [BUSD]']
+    tvl += row[1]['Bal [USD]']
     i += 1
 
 dune_data['futures_tvl'] = tvl
