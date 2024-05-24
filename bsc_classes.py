@@ -512,7 +512,7 @@ class YieldEngineV8:
         self.last_action = 'deposit'
         self._debt_burden = None
         self._payout_remaining = None
-        self.bonus_rate = 0.002
+        self.bonus_rate = 0.005
         self.decay_daily = self.bonus_rate / 45  # 45 day decay
         self._bonus = None
         self._rate = None
