@@ -157,6 +157,16 @@ class ContractReader:
     class Info:
         pass
 
+    def get_turbine_balance(self):
+        function_name = 'balanceUnderlying'
+        try:
+            # Call the read function (constant function)
+            result = self.contract.functions[function_name]().call()
+        except Exception as e:
+            print(f"Error calling {function_name}: {e}")
+        balance = result / 1E18
+        return balance
+
     def get_futures_info(self):
         self.call_read_function_new('getInfo')
         data = {
