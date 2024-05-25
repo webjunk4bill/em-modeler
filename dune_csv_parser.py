@@ -36,20 +36,26 @@ dune_data = {}
 
 # Get LP related data
 # This is from https://dune.com/elephantmoney/liquidity-pools-detailed
+
+# Buys
 df_buy = pd.read_csv('chain_data/em_dex_buy_vol.csv', index_col='category')
-df_sell = pd.read_csv('chain_data/em_dex_sell_vol.csv', index_col='category')
 df_buy_size = len(df_buy['value_usd']['BWB'])
-df_sell_size = len(df_sell['value_usd']['BWB'])
 dune_data['pcs_buy_volume'] = df_buy['value_usd']['PCS'].sum() / df_buy_size
-dune_data['pcs_sell_volume'] = df_sell['value_usd']['PCS'].sum() / df_sell_size
 dune_data['bwb_volume'] = df_buy['value_usd']['BWB'].sum() / df_buy_size
-dune_data['swb_volume'] = df_sell['value_usd']['BWB'].sum() / df_sell_size
+dune_data['Buyback'] = df_buy['value_usd']['BuyBack'].sum() / df_buy_size
+dune_data['nft_sell_taxes'] = df_buy['value_usd']['NFT Royalties'].sum() / df_buy_size
 dune_data['total_buy_volume'] = df_buy['value_usd'].sum() / df_buy_size
-dune_data['total_sell_volume'] = df_sell['value_usd'].sum() / df_sell_size
+
+# Sells
+df_sell = pd.read_csv('chain_data/em_dex_sell_vol.csv', index_col='category')
+df_sell_size = len(df_sell['value_usd']['BWB'])
+dune_data['pcs_sell_volume'] = df_sell['value_usd']['PCS'].sum() / df_sell_size
+dune_data['swb_volume'] = df_sell['value_usd']['BWB'].sum() / df_sell_size
 dune_data['futures_payouts'] = df_sell['value_usd']['Other'].sum() / df_sell_size
 dune_data['trunk_buys'] = df_sell['value_usd']['PegSupport'].sum() / df_sell_size
-dune_data['nft_sell_taxes'] = df_buy['value_usd']['NFT Royalties'].sum() / df_buy_size
-dune_data['Buyback'] = df_buy['value_usd']['BuyBack'].sum() / df_buy_size
+dune_data['total_sell_volume'] = (df_sell['value_usd'].sum() -
+                                  df_sell['value_usd']['Deployer'].sum()) / df_sell_size  # ignore Deployer sales
+# Calcs
 dune_data['em_cashflow'] = dune_data['total_buy_volume'] - dune_data['total_sell_volume']
 dune_data['market_cashflow'] = dune_data['pcs_buy_volume'] + dune_data['bwb_volume'] - \
                                dune_data['pcs_sell_volume'] - dune_data['swb_volume']
