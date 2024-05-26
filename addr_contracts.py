@@ -16,6 +16,7 @@ deployer_contract = "0x16E76819aC1f0dfBECc48dFE93B198830e0C85EB"
 futures_rdf_vault = "0xA8E3EE88a52644EdFD50D4F5527641f5F0535b3e"
 turbine_btc = "0x69C714f868855eC3F24dfff0fd5F1805642F2D86"
 turbine_trunk = "0x6De7dEe23b27a6ABD1b3a1a4C0C40B128620a51d"
+bnb_reserve = "0x98F6c7c953Cf4cef0fd632b2509c9e349687FC92"
 
 elephant_farms_max_apr = 1.25
 elephant_stampede_max_apr = 2.05
