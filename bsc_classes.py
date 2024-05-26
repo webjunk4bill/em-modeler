@@ -1,149 +1,137 @@
-# Wallet Holdings
 import time
-
-from moralis import evm_api
 import numpy as np
-from api import api_key, bsc_url
+from api import bsc_url, cmc_key
 from web3 import Web3
 import json
+import requests
 
 
 class Token:
-    def __init__(self, tok_name, tok_addr):
-        self.name = tok_name
-        self.address = tok_addr
-        self.usd_value = self.get_price()
+    def __init__(self, addr: str, cmc_id: int):
+        self.cmc_id = cmc_id
+        self.address = addr
+        web3 = Web3(Web3.HTTPProvider(bsc_url))
+        address = web3.to_checksum_address(addr)
+        with open('chain_data/token_abi.json', 'r') as abi_file:
+            contract_abi = json.load(abi_file)
+        contract = web3.eth.contract(address=address, abi=contract_abi)
+        self.name = contract.functions.name().call()
+        self.symbol = contract.functions.symbol().call()
+        self.usd_value = self.cmc_get_price()
 
-    def get_price(self):
-        params1 = {
-            "address": self.address,
-            "chain": "bsc"
+    def cmc_get_price(self):
+        # CoinMarketCap API URL
+        url = f"https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
+
+        # Parameters
+        parameters = {
+            'id': self.cmc_id,
+            'convert': 'USD'
         }
 
-        result = evm_api.token.get_token_price(
-            api_key=api_key,
-            params=params1,
-        )
+        # Headers
+        headers = {
+            'Accepts': 'application/json',
+            'X-CMC_PRO_API_KEY': cmc_key,
+        }
 
-        # print(self.name + ' Token, Price = ' + str(result["usdPrice"]) + " USD")
-        return result["usdPrice"]
-
-
-class TokenYield:
-    def __init__(self, token, amount, apr):
-        self.token = token
-        self.max_apr = apr
-        self.amount = amount
-
-        if self.token.name == 'Trunk':  # Trunk yield is adjusted by open-market price
-            self.apr = self.max_apr * self.token.usd_value
-        else:
-            self.apr = self.max_apr
-
-        self.daily_yield = self.amount * self.apr / 365
-        self.weekly_yield = self.daily_yield * 7
-        self.monthly_yield = self.daily_yield * 365 / 12
-        self.yearly_yield = self.daily_yield * 365
+        try:
+            response = requests.get(url, headers=headers, params=parameters)
+            response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+            data = response.json()
+            price = data['data'][str(self.cmc_id)]['quote']['USD']['price']
+            return price
+        except requests.exceptions.HTTPError as http_err:
+            print(f"HTTP error occurred: {http_err}")
+        except Exception as err:
+            print(f"An error occurred: {err}")
+            return None
 
 
 class CakeLP:
-    def __init__(self, addr1, addr2):
-        self.token_addr = [addr1, addr2]
-        self.token_name = []
+    def __init__(self, pair_addr: str, token0: Token, token1: Token):
+        self.pair_addr = pair_addr
+        self.token_addr = [token0.address, token1.address]
+        self.token_name = [token0.symbol, token1.symbol]
         self.token_bal = {}
-        self.pair_addr = ''
-        self.get_pair_info()
-        self.const_prod = self.token_bal[self.token_name[0]] * self.token_bal[self.token_name[1]]
-        self.price = self.get_price()
-        self.tokens_removed = 0
-
-    def get_pair_info(self):
-        # Get Pair Metadata
-        params1 = {
-            "exchange": "pancakeswapv2",
-            "token0_address": self.token_addr[0],
-            "token1_address": self.token_addr[1],
-            "chain": "bsc"
-        }
-        metadata = evm_api.defi.get_pair_address(
-            api_key=api_key,
-            params=params1,
-        )
-        self.token_name = [metadata["token0"]["symbol"], metadata["token1"]["symbol"]]
-        self.pair_addr = metadata["pairAddress"]
-
-        # Get Pair Token Balances
-        params2 = {
-            "pair_address": self.pair_addr,
-            "chain": "bsc"
-        }
-        reserves = evm_api.defi.get_pair_reserves(
-            api_key=api_key,
-            params=params2
-        )
-
-        # Format token balances to floats.  All divide by 1E18 except ELEPHANT
-        for i in [0, 1]:
-            if self.token_name[i] == "ELEPHANT":
-                self.token_bal[self.token_name[i]] = float(reserves["reserve{0}".format(i)]) / 1E9
-            else:
-                self.token_bal[self.token_name[i]] = float(reserves["reserve{0}".format(i)]) / 1E18
-        return self
-
-    def get_price(self):
-        # Get Token Price based on LP info
-        # Price should be in BUSD unless paired with WBNB, so [BUSD or WBNB] / Token
-        [first, second] = self.token_bal.keys()
-        if first != 'BUSD' and first != 'WBNB':
-            price = self.token_bal[second] / self.token_bal[first]  # first token is desired in USD
-        elif first == 'WBNB' and second == 'BUSD':
-            price = self.token_bal[second] / self.token_bal[first]  # this is WBNB/BUSD LP
+        # Read Contract
+        with open('chain_data/pcs_lp_abi.json', 'r') as abi_file:
+            contract_abi = json.load(abi_file)
+        web3 = Web3(Web3.HTTPProvider(bsc_url))
+        pair = web3.eth.contract(address=self.pair_addr, abi=contract_abi)
+        reserves = pair.functions.getReserves().call()
+        if self.token_addr[0] == pair.functions.token0().call():
+            self.token_bal[self.token_name[0]] = reserves[0] / 1E18
+            self.token_bal[self.token_name[1]] = reserves[1] / 1E18
+        elif self.token_addr[1] == pair.functions.token0().call():
+            self.token_bal[self.token_name[1]] = reserves[0] / 1E18
+            self.token_bal[self.token_name[0]] = reserves[1] / 1E18
         else:
-            price = self.token_bal[first] / self.token_bal[second]  # second token is desired in USD
+            raise Exception('Token address does not match!')
+        # Check if it's Elephant
+        if self.token_name[0] == 'ELEPHANT':
+            self.token_bal[self.token_name[0]] *= 1E9
+        elif self.token_name[1] == 'ELEPHANT':
+            self.token_bal[self.token_name[1]] *= 1E9
+        else:
+            pass
+        self.const_prod = self.token_bal[self.token_name[0]] * self.token_bal[self.token_name[1]]
+
+    def get_price(self, token: Token):
+        """ Get token price in the other token"""
+        if self.token_bal[token.symbol]:
+            other_key = (set(self.token_bal.keys()) - {token.symbol}).pop()
+            price = self.token_bal[token.symbol] / self.token_bal[other_key]
+        else:
+            raise Exception('Token Symbol not found')
         return price
 
-    def update_lp(self, t_name, change):
-        # Use this to update the token pair and price
-        # match token name, update the balances, re-calc the price
+    def update_lp(self, token: Token, change):
+        """
+        Use this to update the token pair and price
+        match token name, update the balances, re-calc the price
+        """
         [first, second] = self.token_bal.keys()
-        if first == t_name:
+        if first == token.symbol:
             old = self.token_bal[second]  # Get original "buy" token balance
             self.token_bal[first] += change  # Push in "sell" tokens
             self.token_bal[second] = self.const_prod / self.token_bal[first]  # Calc new "buy" token balance
-            self.tokens_removed = old - self.token_bal[second]  # Cal number of tokens bought or removed
+            tokens_removed = old - self.token_bal[second]  # Cal number of tokens bought or removed
         else:  # This is just in the opposite order
             old = self.token_bal[first]
             self.token_bal[second] += change
             self.token_bal[first] = self.const_prod / self.token_bal[second]
-            self.tokens_removed = old - self.token_bal[first]
-        self.price = self.get_price()
+            tokens_removed = old - self.token_bal[first]
 
-        return self.tokens_removed
+        return tokens_removed
 
-    def add_liquidity(self, t_name1, amt1, t_name2, amt2):
-        self.token_bal[t_name1] += amt1
-        self.token_bal[t_name2] += amt2
-        self.const_prod = self.token_bal[t_name1] * self.token_bal[t_name2]
-        self.price = self.get_price()
+    def add_liquidity(self, token1: Token, amt1: float, token2: Token, amt2: float):
+        self.token_bal[token1.symbol] += amt1
+        self.token_bal[token2.symbol] += amt2
+        self.const_prod = self.token_bal[token1.symbol] * self.token_bal[token2.symbol]
 
 
-class GetWalletBalance:
-    def __init__(self, addr, token_addr):
-        params = {
-            "address": addr,
-            "chain": "bsc",
-            "token_addresses": [token_addr],
-        }
+class Wallet:
+    def __init__(self, addr, token: Token = None):
+        """ Get the native balance (bnb) of the wallet.  Additionally, you can use the function
+        get_token_balance for the balance of a non-native token"""
+        self.token = token
+        web3 = Web3(Web3.HTTPProvider(bsc_url))
+        self.wallet_addr = web3.to_checksum_address(addr)  # ensure checksum is good
+        # BNB balance is native to the chain and read differently
+        self.bnb_balance = web3.eth.get_balance(self.wallet_addr) / 1E18
 
-        result = evm_api.token.get_wallet_token_balances(
-            api_key=api_key,
-            params=params,
-        )
-        # Format token balance to floats.  All divide by 1E18 except ELEPHANT
-        if result[0]["symbol"] == "ELEPHANT":
-            self.balance = float(result[0]["balance"]) / 1E9
+    def get_token_balance(self):
+        web3 = Web3(Web3.HTTPProvider(bsc_url))
+        with open('chain_data/token_abi.json', 'r') as abi_file:
+            contract_abi = json.load(abi_file)
+        contract = web3.eth.contract(address=self.token.address, abi=contract_abi)
+        token_balance = contract.functions.balanceOf(self.wallet_addr).call()
+        if self.token.symbol == "ELEPHANT":
+            balance = token_balance / 1E9
         else:
-            self.balance = float(result[0]["balance"]) / 1E18
+            balance = token_balance / 1E18
+        return balance
 
 
 class ContractReader:
@@ -238,39 +226,6 @@ class ContractReader:
         result = self.contract.functions[function_name]().call()
         setattr(self.result_obj, function_name, result)
         return result
-
-
-def elephant_buy(funds, busd_lp, bnb_lp, bnb_price):
-    """This function figures out the best pool to buy ELEPHANT from and returns the number of tokens removed"""
-    if busd_lp.price > bnb_lp.price * bnb_price:
-        bnb_lp.update_lp('WBNB', funds / bnb_price)
-        tok_removed = bnb_lp.tokens_removed
-    else:
-        busd_lp.update_lp('BUSD', funds)
-        tok_removed = busd_lp.tokens_removed
-    return tok_removed
-
-
-def elephant_sell(funds, busd_lp, bnb_lp, bnb_price):
-    """This function figures out the best pool to sell ELEPHANT into and returns the amount of BUSD removed"""
-    if busd_lp.price < bnb_lp.price * bnb_price:
-        bnb_lp.update_lp('ELEPHANT', funds)
-        tok_removed = bnb_lp.tokens_removed * bnb_price  # Always return BUSD, not BNB
-    else:
-        busd_lp.update_lp('ELEPHANT', funds)
-        tok_removed = busd_lp.tokens_removed
-    return tok_removed
-
-
-def get_ave_ele(busd_lp, bnb_lp, bnb_price):
-    """This function determines the weighted average USD price of Elephant based on the two LPs"""
-    busd_ele = busd_lp.token_bal['ELEPHANT']
-    bnb_ele = bnb_lp.token_bal['ELEPHANT']
-    busd_weight = busd_ele / (busd_ele + bnb_ele)
-    bnb_weight = bnb_ele / (busd_ele + bnb_ele)
-    ave_price = busd_lp.price * busd_weight + bnb_lp.price * bnb_price * bnb_weight
-
-    return ave_price
 
 
 class DepotEngine:
@@ -726,3 +681,12 @@ class EMCashflow:
             "bertha_buys": self.bertha_buys,
             "$em_cashflow": self.cashflow
         }
+
+
+class Turbine:
+    def __init__(self, addr, token: Token):
+        contract = ContractReader('chain_data/turbine_abi.json', addr)
+        self.token = token
+        self.symbol = self.token.symbol
+        self.balance = contract.get_turbine_balance()
+        self.usd_value = self.token.usd_value * self.balance

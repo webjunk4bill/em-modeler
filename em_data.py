@@ -21,7 +21,7 @@ def get_em_data(*, read_blockchain: bool = False):
     # initialize main dict
     em_data = {}
 
-    if read_blockchain:  # Will use the moralis APIs to query the blockchian.  Takes 10 sec or so.
+    if read_blockchain:  # Will Query the blockchain, takes a few seconds
         # Get Dune Data
         f_o = open('chain_data/DuneData.pkl', 'rb')
         dune = pickle.load(f_o)
@@ -35,30 +35,29 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['futures'] = dune['futures']
 
         # get EM info (this can be done automatically)
-        # TODO: Convert Moralis calls to web3 module.  Seems a lot faster.
+        # set up tokens
+        em_data['wbnb'] = bsc.Token(addr_tokens.WBNB, addr_tokens.cmc_bnb)
+        em_data['trunk'] = bsc.Token(addr_tokens.Trunk, addr_tokens.cmc_trunk)
+        em_data['busd'] = bsc.Token(addr_tokens.BUSD, addr_tokens.cmc_busd)
+        em_data['elephant'] = bsc.Token(addr_tokens.Elephant, addr_tokens.cmc_elephant)
+        em_data['btc'] = bsc.Token(addr_tokens.BTCB, addr_tokens.cmc_btc)
         # get LPs
-        em_data['ele_bnb_lp'] = bsc.CakeLP(addr_tokens.Elephant, addr_tokens.BNB)
-        em_data['ele_busd_lp'] = bsc.CakeLP(addr_tokens.Elephant, addr_tokens.BUSD)
-        em_data['trunk_busd_lp'] = bsc.CakeLP(addr_tokens.Trunk, addr_tokens.BUSD)
-        em_data['trunk_bnb_lp'] = bsc.CakeLP(addr_tokens.Trunk, addr_tokens.BNB)
-        # get Tokens used
-        em_data['bnb'] = bsc.Token('BNB', addr_tokens.BNB)
-        em_data['btc'] = bsc.Token('BTCB', addr_tokens.BTC)
-        # get Treasury balances
-        em_data['bertha'] = bsc.GetWalletBalance(addr_contracts.ele_bertha, addr_tokens.Elephant).balance
-        em_data['graveyard'] = bsc.GetWalletBalance(addr_contracts.em_graveyard, addr_tokens.Elephant).balance
-        # em_data['deployer'] = bsc.GetWalletBalance(addr_contracts.deployer_contract, addr_tokens.Elephant).balance
+        em_data['ele_bnb_lp'] = bsc.CakeLP(addr_tokens.lp_ele_bnb, em_data['elephant'], em_data['wbnb'])
+        em_data['ele_busd_lp'] = bsc.CakeLP(addr_tokens.lp_ele_busd, em_data['elephant'], em_data['busd'])
+        em_data['trunk_busd_lp'] = bsc.CakeLP(addr_tokens.lp_trunk_busd, em_data['trunk'], em_data['busd'])
+        em_data['trunk_bnb_lp'] = bsc.CakeLP(addr_tokens.lp_trunk_bnb, em_data['trunk'], em_data['wbnb'])
         # Calculate and set starting values
-        ave_ele_price = bsc.get_ave_ele(em_data['ele_busd_lp'], em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
-        em_data['start_ele_price'] = ave_ele_price
-        em_data['start_trunk_price'] = em_data['trunk_busd_lp'].price
-        em_data['start_bnb_price'] = em_data['bnb'].usd_value
+        em_data['start_ele_price'] = em_data['elephant'].usd_value
+        em_data['start_trunk_price'] = em_data['trunk'].usd_value
+        em_data['start_bnb_price'] = em_data['wbnb'].usd_value
         em_data['start_btc_price'] = em_data['btc'].usd_value
+        # get Treasury balances
+        em_data['bertha'] = bsc.Wallet(addr_contracts.ele_bertha, em_data['elephant']).get_token_balance()
+        em_data['graveyard'] = bsc.Wallet(addr_contracts.em_graveyard, em_data['elephant']).get_token_balance()
+        em_data['bnb_reserve'] = bsc.Wallet(addr_contracts.bnb_reserve).bnb_balance
+        em_data['btc_turbine'] = bsc.Turbine(addr_contracts.turbine_btc, em_data['btc'])
+        em_data['trunk_turbine'] = bsc.Turbine(addr_contracts.turbine_trunk, em_data['trunk'])
         # Read Contract Info
-        c_btc = bsc.ContractReader('chain_data/btc_turbine_abi.json', addr_contracts.turbine_btc)
-        em_data['btc_turbine'] = c_btc.get_turbine_balance()
-        c_trunk = bsc.ContractReader('chain_data/trunk_turbine_abi.json', addr_contracts.turbine_trunk)
-        em_data['trunk_turbine'] = c_trunk.get_turbine_balance()
         c_trumpet = bsc.ContractReader('chain_data/trumpet_abi.json', addr_contracts.trumpet_contract)
         temp = c_trumpet.get_trumpet_info()
         em_data['trumpet'] = bsc.Trumpet(temp['users'], temp['trunk'], temp['trumpet'])
@@ -67,12 +66,14 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['elephant_wallets'] = 1E15 - em_data['graveyard'] - em_data['bertha'] - \
                                       em_data['ele_busd_lp'].token_bal['ELEPHANT'] - \
                                       em_data['ele_bnb_lp'].token_bal['ELEPHANT']
-
-        to_pickle = em_data
+        # Write to csv
+        df = pd.Series(em_data)
+        df.to_csv('chain_data/emData_{0}.csv'.format(dt.datetime.now().strftime('%Y-%m-%d %H:%M')))
+        # Write to pickle
         f1 = open('chain_data/emData_{0}.pkl'.format(dt.datetime.now().strftime('%Y-%m-%d %H:%M')), 'wb')
+        pickle.dump(em_data, f1)
         f2 = open('chain_data/emData.pkl', 'wb')
-        pickle.dump(to_pickle, f1)
-        pickle.dump(to_pickle, f2)
+        pickle.dump(em_data, f2)
         f1.close()
         f2.close()
     else:
