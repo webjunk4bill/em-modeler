@@ -23,7 +23,7 @@ def setup_run(end_date):
     f_o.close()
 
     # All APRs are the daily equivalent
-    model_setup = {'support_apr': 0.05,  # 1% ea for BNB reserve, perf fund, NFTs.  2% Trunk/Trumpet
+    model_setup = {'support_apr': 0.05 / 365,  # 1% ea for BNB reserve, perf fund, NFTs.  2% Trunk/Trumpet
                    'day': pd.Timestamp(date.today()),
                    'f_compound_usd': 200,
                    'f_claim_wait': 120
@@ -43,14 +43,12 @@ def setup_run(end_date):
 
     # ------ Set up Market Growth ------
     # This will be a general multiplier for BNB, BTC, and Trunk from market participation
+    # This multiplier needs to be multipled to the token USD value in the Token class
     market_growth = [1, 1.5]
     mkt_sparse_range = pd.interval_range(model_setup['day'], end_date, len(market_growth)).left
     temp_mkt_s = pd.Series(market_growth, index=mkt_sparse_range)
     temp_mkt_s[end_date] = 2
-    temp_mkt_full = pd.Series(temp_mkt_s, index=full_range).interpolate()
-    model_setup['bnb_price_s'] = np.multiply(temp_mkt_full, em_data['wbnb'].usd_value)
-    model_setup['btc_price_s'] = np.multiply(temp_mkt_full, em_data['btc'].usd_value)
-    model_setup['trunk_price_s'] = np.multiply(temp_mkt_full, em_data['trunk'].usd_value)
+    model_setup['market_growth'] = pd.Series(temp_mkt_s, index=full_range).interpolate()
 
     # --- EM Growth ---
     # Buy Side

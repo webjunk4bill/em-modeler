@@ -55,6 +55,7 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['bertha'] = bsc.Wallet(addr_contracts.ele_bertha, em_data['elephant']).get_token_balance()
         em_data['graveyard'] = bsc.Wallet(addr_contracts.em_graveyard, em_data['elephant']).get_token_balance()
         em_data['bnb_reserve'] = bsc.Wallet(addr_contracts.bnb_reserve).bnb_balance
+        em_data['rdf'] = bsc.Wallet(addr_contracts.futures_rdf_vault).bnb_balance
         em_data['btc_turbine'] = bsc.Turbine(addr_contracts.turbine_btc, em_data['btc'])
         em_data['trunk_turbine'] = bsc.Turbine(addr_contracts.turbine_trunk, em_data['trunk'])
         # Read Contract Info
