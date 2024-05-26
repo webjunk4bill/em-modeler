@@ -98,7 +98,7 @@ tvl = 0
 for row in f_data.iterrows():
     if row[1]['Bal [USD]'] <= 0:
         pass
-    futures.append(bsc.YieldEngineV6(row[1]['Bal [USD]'], 0.005))
+    futures.append(bsc.YieldEngineV8(row[1]['Bal [USD]'], 0.005))
     if not m.isnan(row[1]['Comp [USD]']):
         futures[i].compounds = row[1]['Comp [USD]']
     if not m.isnan(row[1]['Wd [USD]']):
