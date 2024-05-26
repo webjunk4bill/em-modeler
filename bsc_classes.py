@@ -472,6 +472,104 @@ class Turbine:
         return self.token.usd_value * self.balance
 
 
+class ElephantHandler:
+    """
+    Helper class for frequent Elephant operations, mainly handling buys and sells properly
+    """
+    def __init__(self, bnb_lp: CakeLP, bnb_lp_backing: Token, busd_lp: CakeLP,
+                 busd_lp_backing: Token, elephant: Token, bertha: float, graveyard: float):
+        self.bnb_lp = bnb_lp
+        self.bnb_token = bnb_lp_backing
+        self.busd_lp = busd_lp
+        self.busd_token = busd_lp_backing
+        self.elephant_token = elephant
+        self.bertha = bertha
+        self.graveyard = graveyard
+
+    @property
+    def bnb_usd_price(self):
+        return get_lp_usd(self.bnb_token, self.bnb_lp)
+
+    @property
+    def busd_usd_price(self):
+        return get_lp_usd(self.busd_token, self.busd_lp)
+
+    def protocol_buy(self, bnb_amt: float):
+        """ protocol buys are always in BNB.  Updates treasury and LPs, does not return any values """
+        ele_bought = self.bnb_lp.update_lp(self.bnb_token, bnb_amt)
+        self.bertha += ele_bought
+        return
+
+    def protocol_sell(self, ele_amt: float):
+        """ Protocol sells are always in the BNB LP.  Updates Treasury and LPs, does not return any values """
+        self.bnb_lp.update_lp(self.elephant_token, ele_amt)
+        self.bertha -= ele_amt
+        return
+
+    def pcs_buy(self, usd_amt: float):
+        """ Market buy will use PCS router for best price.  Always in USD """
+        if self.bnb_usd_price <= self.busd_usd_price:
+            bnb_amt = usd_amt / self.bnb_token.usd_value
+            ele_bought = self.bnb_lp.update_lp(self.bnb_token, bnb_amt)
+            reflections = ele_bought * 0.05  # 5% to reflections
+            to_bertha = self.bertha / 1E15 * reflections  # Bertha's cut based on ownership
+            to_graveyard = self.graveyard / 1E15 * reflections # Graveyard's cut
+            self.bertha += to_bertha
+            self.graveyard += to_graveyard
+            # 5% added as liquidity
+            self.bnb_lp.add_liquidity(self.elephant_token, ele_bought * 0.025, self.bnb_token, bnb_amt * 0.025)
+            return ele_bought * 0.9  # 10% tax
+        else:
+            ele_bought = self.busd_lp.update_lp(self.busd_token, usd_amt)
+            reflections = ele_bought * 0.05
+            to_bertha = self.bertha / 1E15 * reflections  # Bertha's cut based on ownership
+            to_graveyard = self.graveyard / 1E15 * reflections  # Graveyard's cut
+            self.bertha += to_bertha
+            self.graveyard += to_graveyard
+            bnb_amt = usd_amt / self.bnb_token.usd_value
+            # liquidity is always added to BNB LP (I think)
+            self.bnb_lp.add_liquidity(self.elephant_token, ele_bought * 0.025, self.bnb_token, bnb_amt * 0.025)
+            return ele_bought * 0.9
+
+    def pcs_sell(self, usd_amt: float):
+        """
+        Normally a sale would start with the amount of elephant, but for tracking purposes,
+        the model just handles the amount of market sells based in USD
+        """
+        if self.bnb_usd_price >= self.busd_usd_price:
+            ele_amt = usd_amt / self.bnb_usd_price
+            reflections = ele_amt * 0.05
+            to_bertha = self.bertha / 1E15 * reflections  # Bertha's cut based on ownership
+            to_graveyard = self.graveyard / 1E15 * reflections  # Graveyard's cut
+            self.bertha += to_bertha
+            self.graveyard += to_graveyard
+            bnb_bought = self.bnb_lp.update_lp(self.elephant_token, ele_amt * 0.9)
+            bnb_amt = usd_amt / self.bnb_token.usd_value
+            self.bnb_lp.add_liquidity(self.elephant_token, ele_amt * 0.025, self.bnb_token, bnb_amt * 0.025)
+            return bnb_bought
+        else:
+            ele_amt = usd_amt/ self.busd_usd_price
+            reflections = ele_amt * 0.05
+            to_bertha = self.bertha / 1E15 * reflections  # Bertha's cut based on ownership
+            to_graveyard = self.graveyard / 1E15 * reflections  # Graveyard's cut
+            self.bertha += to_bertha
+            self.graveyard += to_graveyard
+            busd_bought = self.busd_lp.update_lp(self.elephant_token, ele_amt * 0.9)
+            bnb_amt = usd_amt / self.bnb_token.usd_value
+            self.bnb_lp.add_liquidity(self.elephant_token, ele_amt * 0.025, self.bnb_token, bnb_amt * 0.025)
+            return busd_bought
+
+    def bwb_buy(self, bnb_amt: float):
+        ele_bought = self.bnb_lp.update_lp(self.bnb_token, bnb_amt)
+        self.bertha += ele_bought * 0.08  # 8% goes to treasure
+        return ele_bought * 0.915  # 91.5% returned to buyer
+
+    def bwb_sell(self, ele_amt: float):
+        self.bertha += ele_amt * 0.08
+        bnb_bought = self.bnb_lp.update_lp(self.elephant_token, ele_amt * 0.915)  # only 91.5% is sold to LP
+        return bnb_bought
+
+
 def get_lp_usd(backing: Token, lp: CakeLP):
     """
     For tokens not paired with a stable coin, use this to know the usd value in that particular lp
@@ -479,3 +577,4 @@ def get_lp_usd(backing: Token, lp: CakeLP):
     native_price = lp.get_price(backing)
     usd = native_price * backing.usd_value
     return usd
+
