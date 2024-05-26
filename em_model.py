@@ -13,10 +13,9 @@ em_data = get_em_data(read_blockchain=False)  # False = pull from pickle vs quer
 
 # Run Model Setup (starting funds, run quarters, current BNB price)
 # Edit parameters in setup_run.py to adjust model parameters
-model_setup = setup_run('2026-10-01', em_data['bnb'].usd_value)
+model_setup = setup_run('2026-10-01')
 # --- initialize variables
 futures = em_data['futures']
-stampede = em_data['stampede']
 redemptions_paid = 0
 cum_futures_payouts = 0
 running_inflows = 0
@@ -25,6 +24,7 @@ model_output = {}
 em_cashflow = bsc.EMCashflow()
 futures_done = False
 sunset_futures = False
+sunset_date = pd.to_datetime('2025-01-01')
 new_buffer_pool_apr = 0.0 / 365
 
 # Create and Run Model
@@ -32,58 +32,46 @@ for run in range(int(model_setup['run_days'])):
     # Initialize Variables
     del em_cashflow  # probably not necessary
     em_cashflow = bsc.EMCashflow()
-    trunk_yield = 0
-    stp_rate = min(0.005, 0.005 * em_data['trunk_busd_lp'].price)
     today = model_setup['day']
     tomorrow = model_setup['day'] + pd.Timedelta(1, "d")
     yesterday = model_setup['day'] - pd.Timedelta("1d")
     if em_data['bertha'] < 1E12:
         break  # stop the loop when Bertha is exhausted (< 1T tokens)
-    # Daily Bertha Support ---------------------------------------------------------------------
-    average_ele_price = bsc.get_ave_ele(em_data['ele_busd_lp'], em_data['ele_bnb_lp'], em_data['bnb'].usd_value)
-    daily_bertha_support_usd = em_data['bertha'] * average_ele_price * (model_setup['bertha_outflows'] +
-                                                                        new_buffer_pool_apr)
-    em_assets_day_start = em_data['bertha'] * average_ele_price + em_data['trunk_busd_lp'].token_bal['BUSD'] + \
-                          em_data['ele_busd_lp'].token_bal['BUSD'] + em_data['ele_bnb_lp'].token_bal['WBNB'] * \
-                          em_data['bnb'].usd_value + em_data['busd_treasury'] + em_data['trunk_treasury'] * \
-                          em_data['trunk_busd_lp'].price
 
     # Get Day Start Prices -----------------------------------------------------------------------
-    begin_ele_price = average_ele_price
-    begin_bnb_price = em_data['bnb'].usd_value
-    begin_trunk_price = em_data['trunk_busd_lp'].price
+    ele_bnb_usd = bsc.get_lp_usd(em_data['wbnb'], em_data['ele_bnb_lp'])
+    begin_ele_price = ele_bnb_usd
+    em_assets_day_start = (em_data['bertha'] * begin_ele_price +
+                           em_data['btc_turbine'].usd_value +
+                           em_data['trunk_turbine'].usd_value +
+                           (em_data['bnb_reserve'] + em_data['rdf']) * em_data['wbnb'].usd_value)
+    futures_group_rate = (em_data['bnb_reserve'] * em_data['wbnb'].usd_value) / em_data['futures_info']['balance']
+    # Daily Bertha Support ---------------------------------------------------------------------
+    daily_bertha_support_usd = em_data['bertha'] * ele_bnb_usd * (model_setup['support_apr'])
 
     # Incoming Funds ---------------------------------------------------------------------
-    # --- Farmer's Depot ---
-    '''
-    depot_buy_usd = model_setup['buy_depot'][today]  # Don't want to directly modify the starting value
-    if em_data['trunk_busd_lp'].price < 0.98:  # 10% of funds auto purchase market Trunk if below $0.98
-        em_data['trunk_treasury'] += em_data['trunk_busd_lp'].update_lp('BUSD', depot_buy_usd * 0.1)
-        depot_buy_usd *= 0.9
-    depot_buy = depot_buy_usd / max(em_data['trunk_busd_lp'].price, 0.25)  # Convert to Trunk
-    em_data['farmers_depot'].deposit(depot_buy)
-    em_data['busd_treasury'] += depot_buy_usd  # funds go to busd treasury
-    '''
     # --- new Futures stakes ---
     wallets = int(model_setup['f_new_wallets'][today])
     deposit = model_setup['f_new_deposit'][today]
     for _ in range(wallets):
-        if sunset_futures is True and begin_trunk_price >= 0.98 or futures_done is True:
+        if sunset_futures is True and sunset_date is today or futures_done is True:
             futures_done = True
-            trunk = em_data['trunk_busd_lp'].update_lp("BUSD", deposit)  # Fresh deposits need to buy trunk
-            stampede.append(bsc.YieldEngineV6(trunk, 0.005 * begin_trunk_price))
-            em_cashflow.in_trunk += deposit
+            pass
         else:
-            em_data['futures_busd_pool'] += deposit * 0.1
-            em_data['busd_treasury'] += deposit * 0.9
-            futures.append(bsc.YieldEngineV6(deposit, 0.005))  # create new stake
+            em_data['btc_turbine'].balance += deposit * 0.1 / em_data['btc'].usd_value
+            em_data['rdf'] += deposit * 0.1 / em_data['wbnb'].usd_value
+            em_data['bnb_reserve'] += deposit * 0.1 / em_data['wbnb'].usd_value
+            bnb_for_trunk = deposit * 0.2 / em_data['wbnb'].usd_value
+            trunk_removed = em_data['trunk_bnb_lp'].update_lp(em_data['wbnb'], bnb_for_trunk)
+            em_data['trunk_turbine'].balance += trunk_removed
+            futures.append(bsc.YieldEngineV8(deposit, futures_group_rate))  # create new stake
             em_cashflow.in_futures += deposit
     # --- NFT Mints ---
     mint_funds = model_setup['nft_mint_volume'][today]
-    mint_price = em_data['nft'].price
-    em_data['nft'].mint(int(mint_funds / (mint_price * begin_bnb_price)))
+    mints_available = int(mint_funds / (em_data['nft'].price * em_data['wbnb'].usd_value))
+    em_data['nft'].mint(mints_available)
     em_cashflow.in_nft += mint_funds
-    ele_bought = bsc.elephant_buy(mint_funds, em_data['ele_busd_lp'], em_data['ele_bnb_lp'], begin_bnb_price)
+    ele_bought = em_data['ele_bnb_lp'].update_lp(em_data['wbnb'], mints_available)
     em_data['bertha'] += ele_bought  # bertha gets full amount of mint volume
     # --- NFT Marketplace Sales ---
     # Market sells are 90% of the current mint price and Bertha gets a 30% cut of that
