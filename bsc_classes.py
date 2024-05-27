@@ -4,6 +4,7 @@ from api import bsc_url, cmc_key
 from web3 import Web3
 import json
 import requests
+import pandas as pd
 
 
 class Token:
@@ -476,6 +477,7 @@ class ElephantHandler:
     """
     Helper class for frequent Elephant operations, mainly handling buys and sells properly
     """
+
     def __init__(self, bnb_lp: CakeLP, bnb_lp_backing: Token, busd_lp: CakeLP,
                  busd_lp_backing: Token, elephant: Token, bertha: float, graveyard: float):
         self.bnb_lp = bnb_lp
@@ -491,8 +493,25 @@ class ElephantHandler:
         return get_lp_usd(self.bnb_token, self.bnb_lp)
 
     @property
+    def bnb_usd_liquidity(self):
+        return get_lp_liquidity_usd(self.bnb_token, self.bnb_lp)
+
+    @property
     def busd_usd_price(self):
         return get_lp_usd(self.busd_token, self.busd_lp)
+
+    @property
+    def busd_usd_liquidity(self):
+        return get_lp_liquidity_usd(self.busd_token, self.busd_lp)
+
+    @property
+    def bertha_usd_value(self):
+        return self.bertha * self.bnb_usd_price
+
+    @property
+    def ele_in_wallets(self):
+        return (1E15 - self.graveyard - self.bertha - self.bnb_lp.token_bal['ELEPHANT'] -
+                self.busd_lp.token_bal['ELEPHANT'])
 
     def protocol_buy(self, bnb_amt: float):
         """ protocol buys are always in BNB.  Updates treasury and LPs, does not return any values """
@@ -501,10 +520,10 @@ class ElephantHandler:
         return
 
     def protocol_sell(self, ele_amt: float):
-        """ Protocol sells are always in the BNB LP.  Updates Treasury and LPs, does not return any values """
-        self.bnb_lp.update_lp(self.elephant_token, ele_amt)
+        """ Protocol sells are always in the BNB LP.  Updates Treasury and LPs, returns BNB pulled from LP """
+        bnb_bought = self.bnb_lp.update_lp(self.elephant_token, ele_amt)
         self.bertha -= ele_amt
-        return
+        return bnb_bought
 
     def pcs_buy(self, usd_amt: float):
         """ Market buy will use PCS router for best price.  Always in USD """
@@ -513,7 +532,7 @@ class ElephantHandler:
             ele_bought = self.bnb_lp.update_lp(self.bnb_token, bnb_amt)
             reflections = ele_bought * 0.05  # 5% to reflections
             to_bertha = self.bertha / 1E15 * reflections  # Bertha's cut based on ownership
-            to_graveyard = self.graveyard / 1E15 * reflections # Graveyard's cut
+            to_graveyard = self.graveyard / 1E15 * reflections  # Graveyard's cut
             self.bertha += to_bertha
             self.graveyard += to_graveyard
             # 5% added as liquidity
@@ -535,6 +554,7 @@ class ElephantHandler:
         """
         Normally a sale would start with the amount of elephant, but for tracking purposes,
         the model just handles the amount of market sells based in USD
+        In and OUT is always USD
         """
         if self.bnb_usd_price >= self.busd_usd_price:
             ele_amt = usd_amt / self.bnb_usd_price
@@ -546,28 +566,84 @@ class ElephantHandler:
             bnb_bought = self.bnb_lp.update_lp(self.elephant_token, ele_amt * 0.9)
             bnb_amt = usd_amt / self.bnb_token.usd_value
             self.bnb_lp.add_liquidity(self.elephant_token, ele_amt * 0.025, self.bnb_token, bnb_amt * 0.025)
-            return bnb_bought
+            usd_bought = bnb_bought * self.bnb_token.usd_value
+            return usd_bought
         else:
-            ele_amt = usd_amt/ self.busd_usd_price
+            ele_amt = usd_amt / self.busd_usd_price
             reflections = ele_amt * 0.05
             to_bertha = self.bertha / 1E15 * reflections  # Bertha's cut based on ownership
             to_graveyard = self.graveyard / 1E15 * reflections  # Graveyard's cut
             self.bertha += to_bertha
             self.graveyard += to_graveyard
-            busd_bought = self.busd_lp.update_lp(self.elephant_token, ele_amt * 0.9)
+            usd_bought = self.busd_lp.update_lp(self.elephant_token, ele_amt * 0.9)
             bnb_amt = usd_amt / self.bnb_token.usd_value
             self.bnb_lp.add_liquidity(self.elephant_token, ele_amt * 0.025, self.bnb_token, bnb_amt * 0.025)
-            return busd_bought
+            return usd_bought
 
     def bwb_buy(self, bnb_amt: float):
         ele_bought = self.bnb_lp.update_lp(self.bnb_token, bnb_amt)
         self.bertha += ele_bought * 0.08  # 8% goes to treasure
         return ele_bought * 0.915  # 91.5% returned to buyer
 
-    def bwb_sell(self, ele_amt: float):
+    def bwb_sell(self, usd_amt: float):
+        """ In and Out is always USD """
+        ele_amt = usd_amt / self.bnb_usd_price
         self.bertha += ele_amt * 0.08
         bnb_bought = self.bnb_lp.update_lp(self.elephant_token, ele_amt * 0.915)  # only 91.5% is sold to LP
-        return bnb_bought
+        usd_bought = bnb_bought * self.bnb_token.usd_value
+        return usd_bought
+
+
+class FuturesModel:
+    """ Model of futures using a 3rd order polynomials for the aggregate functions of deposits, compounds,
+    and withdrawals.  Coefficients should be entered as a list: [3rd, 2nd, 1st, 0].
+    The dependent variable is days passed the start of the data collection
+    """
+
+    def __init__(self, d_coef=None, w_coef=None, c_coef=None, start_date=pd.to_datetime('2023-12-02')):
+        if c_coef is None:
+            c_coef = [3.0379, -567.23, 98922, 1E7]
+        if w_coef is None:
+            w_coef = [0.6847, -76.35, 47600, 3E6]
+        if d_coef is None:
+            d_coef = [3.5509, -823.19, 86748, 2E7]
+        self.deposit_coef = d_coef
+        self.withdrawal_coef = w_coef
+        self.compound_coef = c_coef
+        self.start_date = start_date
+        self.today = pd.to_datetime(pd.Timestamp.today().date())
+
+    @property
+    def delta_days(self):
+        return (self.today - self.start_date).days
+
+    @property
+    def deposits(self):
+        return poly3_calc(self.deposit_coef, self.delta_days)
+
+    @property
+    def deposit_delta(self):
+        return self.deposits - poly3_calc(self.deposit_coef, self.delta_days - 1)
+
+    @property
+    def withdrawals(self):
+        return poly3_calc(self.withdrawal_coef, self.delta_days)
+
+    @property
+    def withdrawal_delta(self):
+        return self.withdrawals - poly3_calc(self.withdrawal_coef, self.delta_days - 1)
+
+    @property
+    def compounds(self):
+        return poly3_calc(self.compound_coef, self.delta_days)
+
+    @property
+    def tvl(self):
+        return self.deposits + self.compounds - self.withdrawals
+
+    @property
+    def claims(self):
+        return self.compounds + self.withdrawals
 
 
 def get_lp_usd(backing: Token, lp: CakeLP):
@@ -578,3 +654,16 @@ def get_lp_usd(backing: Token, lp: CakeLP):
     usd = native_price * backing.usd_value
     return usd
 
+
+def get_lp_liquidity_usd(backing: Token, lp: CakeLP):
+    """
+    return the usd value of the total liquidity in the LP
+    This will only work with v2 LPs where the tokens are balanced in value
+    TODO: write function to handle v3 LPs
+    """
+    balance = lp.token_bal[backing.symbol]
+    return backing.usd_value * balance * 2
+
+
+def poly3_calc(coef: list, days: int):
+    return coef[0] * days ** 3 + coef[1] * days ** 2 + coef[2] * days + coef[3]
