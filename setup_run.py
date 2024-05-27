@@ -58,7 +58,7 @@ def setup_run(end_date):
     temp_ele_s[end_date] = 1.2
     temp_ele_full = pd.Series(temp_ele_s, index=full_range).interpolate()
     model_setup['bwb_volume'] = np.multiply(temp_ele_full, dune['bwb_volume'])  # This in $USD
-    model_setup['market_buy_volume'] = np.multiply(temp_ele_full, dune['pcs_buy_volume'])
+    model_setup['pcs_buy_volume'] = np.multiply(temp_ele_full, dune['pcs_buy_volume'])
     model_setup['nft_mint_volume'] = np.multiply(temp_ele_full, dune['nft_mint_volume'])
     model_setup['nft_sales_revenue'] = np.multiply(temp_ele_full, dune['nft_sell_taxes'])
 

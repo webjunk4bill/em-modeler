@@ -30,9 +30,15 @@ def get_em_data(*, read_blockchain: bool = False):
         # Check to ensure Futures starting wallets are in line with current contract balance
         c_futures = bsc.ContractReader('chain_data/futures_abi.json', addr_contracts.futures_contract)
         em_data['futures_info'] = c_futures.get_futures_info()
+        em_data['futures_info']['withdrawals'] = em_data['futures_info']['claimed'] - em_data['futures_info']['compounds']
+        em_data['futures_info']['deposits'] = (em_data['futures_info']['balance'] +
+                                               em_data['futures_info']['withdrawals'] * 2 -
+                                               em_data['futures_info']['claimed'])
+        '''
         if dune['futures_tvl'] < 0.975 * em_data['futures_info']['balance']:
             raise Exception('Dune futures info is stale.  TVL on Dune is more than 2.5% below contract read.')
         em_data['futures'] = dune['futures']
+        '''
 
         # get EM info (this can be done automatically)
         # set up tokens
