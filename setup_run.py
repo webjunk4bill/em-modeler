@@ -43,12 +43,9 @@ def setup_run(end_date):
 
     # ------ Set up Market Growth ------
     # This will be a general multiplier for BNB, BTC, and Trunk from market participation
-    # This multiplier needs to be multipled to the token USD value in the Token class
-    market_growth = [1, 1.5]
-    mkt_sparse_range = pd.interval_range(model_setup['day'], end_date, len(market_growth)).left
-    temp_mkt_s = pd.Series(market_growth, index=mkt_sparse_range)
-    temp_mkt_s[end_date] = 2
-    model_setup['market_growth'] = pd.Series(temp_mkt_s, index=full_range).interpolate()
+    # It's set up as an APR, which can be multiplied to the price each day
+    end_growth = 2
+    model_setup['market_growth'] = end_growth ** (1 / days_temp.days)
 
     # --- EM Growth ---
     # Buy Side
