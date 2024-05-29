@@ -473,6 +473,93 @@ class Turbine:
         return self.token.usd_value * self.balance
 
 
+class TrunkHandler:
+    """
+    Helper class for frequent Trunk operations, mainly handling buys, sells, and arbitrage properly
+    """
+
+    def __init__(self, bnb_lp: CakeLP, bnb_lp_backing: Token, busd_lp: CakeLP,
+                 busd_lp_backing: Token, trunk: Token):
+        self.bnb_lp = bnb_lp
+        self.bnb_token = bnb_lp_backing
+        self.busd_lp = busd_lp
+        self.busd_token = busd_lp_backing
+        self.trunk_token = trunk
+
+    @property
+    def bnb_usd_price(self):
+        return get_lp_usd(self.bnb_token, self.bnb_lp)
+
+    @property
+    def bnb_usd_liquidity(self):
+        return get_lp_liquidity_usd(self.bnb_token, self.bnb_lp)
+
+    @property
+    def busd_usd_price(self):
+        return get_lp_usd(self.busd_token, self.busd_lp)
+
+    @property
+    def busd_usd_liquidity(self):
+        return get_lp_liquidity_usd(self.busd_token, self.busd_lp)
+
+    def protocol_buy(self, bnb_amt: float):
+        """ protocol buys are always in BNB. """
+        trunk_bought = self.bnb_lp.update_lp(self.bnb_token, bnb_amt)
+        return trunk_bought
+
+    def protocol_sell(self, trunk_amt: float):
+        """ Protocol sells are always in the BNB LP.  Updates Treasury and LPs, returns BNB pulled from LP """
+        bnb_bought = self.bnb_lp.update_lp(self.trunk_token, trunk_amt)
+        return bnb_bought
+
+    def pcs_buy(self, usd_amt: float):
+        """
+        Market buy will use PCS router for best price.  Always in USD
+        Function returns the amount of trunk bought
+        """
+        if self.bnb_usd_price <= self.busd_usd_price:
+            bnb_amt = usd_amt / self.bnb_token.usd_value
+            return self.bnb_lp.update_lp(self.bnb_token, bnb_amt)
+        else:
+            return self.busd_lp.update_lp(self.busd_token, usd_amt)
+
+    def pcs_sell(self, trunk_amt: float):
+        """
+        Market sell will use PCS router for best price.
+        Function returns the amount purchased in USD (regardless of pool)
+        """
+        if self.bnb_usd_price >= self.busd_usd_price:
+            bnb_bought = self.bnb_lp.update_lp(self.trunk_token, trunk_amt)
+            usd_bought = bnb_bought * self.bnb_token.usd_value
+            return usd_bought
+        else:
+            usd_bought = self.busd_lp.update_lp(self.trunk_token, trunk_amt)
+            return usd_bought
+
+    def arbitrage_pools(self, buy_size=10000):
+        """
+        Function checks to see if the two LPs are within 1.5%, if so it passes, if not, it will perform a
+        "market induced" arbitrage.  Returns the total USD amount of funds input into the lower priced pool
+        """
+        total_buys = 0
+        profit = 0
+        if self.bnb_usd_price <= self.busd_usd_price * 0.985:
+            while self.bnb_usd_price < self.busd_usd_price:
+                trunk_out = self.bnb_lp.update_lp(self.bnb_token, buy_size / self.bnb_token.usd_value)
+                busd_out = self.busd_lp.update_lp(self.trunk_token, trunk_out)
+                total_buys += buy_size
+                profit += busd_out - buy_size
+        elif self.busd_usd_price <= self.bnb_usd_price * 0.985:
+            while self.busd_usd_price < self.bnb_usd_price:
+                trunk_out = self.busd_lp.update_lp(self.busd_token, buy_size)
+                bnb_out = self.bnb_lp.update_lp(self.trunk_token, trunk_out)
+                total_buys += buy_size
+                profit += bnb_out * self.bnb_token.usd_value - buy_size
+        else:
+            pass
+        return {'$buys': total_buys, '$profit': profit}
+
+
 class ElephantHandler:
     """
     Helper class for frequent Elephant operations, mainly handling buys and sells properly
