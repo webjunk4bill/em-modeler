@@ -502,6 +502,10 @@ class TrunkHandler:
     def busd_usd_liquidity(self):
         return get_lp_liquidity_usd(self.busd_token, self.busd_lp)
 
+    @property
+    def total_usd_liquidity(self):
+        return self.busd_usd_liquidity + self.bnb_usd_liquidity
+
     def protocol_buy(self, bnb_amt: float):
         """ protocol buys are always in BNB. """
         trunk_bought = self.bnb_lp.update_lp(self.bnb_token, bnb_amt)
@@ -543,20 +547,11 @@ class TrunkHandler:
         """
         total_buys = 0
         profit = 0
-        if self.bnb_usd_price <= self.busd_usd_price * 0.985:
-            while self.bnb_usd_price < self.busd_usd_price:
-                trunk_out = self.bnb_lp.update_lp(self.bnb_token, buy_size / self.bnb_token.usd_value)
-                busd_out = self.busd_lp.update_lp(self.trunk_token, trunk_out)
-                total_buys += buy_size
-                profit += busd_out - buy_size
-        elif self.busd_usd_price <= self.bnb_usd_price * 0.985:
-            while self.busd_usd_price < self.bnb_usd_price:
-                trunk_out = self.busd_lp.update_lp(self.busd_token, buy_size)
-                bnb_out = self.bnb_lp.update_lp(self.trunk_token, trunk_out)
-                total_buys += buy_size
-                profit += bnb_out * self.bnb_token.usd_value - buy_size
-        else:
-            pass
+        while self.bnb_usd_price <= self.busd_usd_price * 0.985 or self.bnb_usd_price >= self.busd_usd_price * 1.015:
+            trunk_out = self.pcs_buy(buy_size)
+            usd_out = self.pcs_sell(trunk_out)
+            total_buys += buy_size
+            profit += usd_out - buy_size
         return {'$buys': total_buys, '$profit': profit}
 
 
@@ -590,6 +585,10 @@ class ElephantHandler:
     @property
     def busd_usd_liquidity(self):
         return get_lp_liquidity_usd(self.busd_token, self.busd_lp)
+
+    @property
+    def total_usd_liquidity(self):
+        return self.busd_usd_liquidity + self.bnb_usd_liquidity
 
     @property
     def bertha_usd_value(self):
@@ -637,11 +636,36 @@ class ElephantHandler:
             self.bnb_lp.add_liquidity(self.elephant_token, ele_bought * 0.025, self.bnb_token, bnb_amt * 0.025)
             return ele_bought * 0.9
 
-    def pcs_sell(self, usd_amt: float):
+    def pcs_sell(self, ele_amt: float):
         """
-        Normally a sale would start with the amount of elephant, but for tracking purposes,
-        the model just handles the amount of market sells based in USD
-        In and OUT is always USD
+        Market sell will use the PCS routed to find the best price
+        USD value of the sale is returned, regardless of pool used
+        """
+        if self.bnb_usd_price >= self.busd_usd_price:
+            reflections = ele_amt * 0.05
+            to_bertha = self.bertha / 1E15 * reflections  # Bertha's cut based on ownership
+            to_graveyard = self.graveyard / 1E15 * reflections  # Graveyard's cut
+            self.bertha += to_bertha
+            self.graveyard += to_graveyard
+            bnb_bought = self.bnb_lp.update_lp(self.elephant_token, ele_amt * 0.9)
+            bnb_amt = ele_amt * self.bnb_usd_price / self.bnb_token.usd_value
+            self.bnb_lp.add_liquidity(self.elephant_token, ele_amt * 0.025, self.bnb_token, bnb_amt * 0.025)
+            usd_bought = bnb_bought * self.bnb_token.usd_value
+            return usd_bought
+        else:
+            reflections = ele_amt * 0.05
+            to_bertha = self.bertha / 1E15 * reflections  # Bertha's cut based on ownership
+            to_graveyard = self.graveyard / 1E15 * reflections  # Graveyard's cut
+            self.bertha += to_bertha
+            self.graveyard += to_graveyard
+            usd_bought = self.busd_lp.update_lp(self.elephant_token, ele_amt * 0.9)
+            bnb_amt = ele_amt * self.bnb_usd_price / self.bnb_token.usd_value
+            self.bnb_lp.add_liquidity(self.elephant_token, ele_amt * 0.025, self.bnb_token, bnb_amt * 0.025)
+            return usd_bought
+
+    def pcs_sell_usd(self, usd_amt: float):
+        """
+        This function can be used when a USD amount of sales is desired vs a known elephant amount
         """
         if self.bnb_usd_price >= self.busd_usd_price:
             ele_amt = usd_amt / self.bnb_usd_price
@@ -679,6 +703,20 @@ class ElephantHandler:
         bnb_bought = self.bnb_lp.update_lp(self.elephant_token, ele_amt * 0.915)  # only 91.5% is sold to LP
         usd_bought = bnb_bought * self.bnb_token.usd_value
         return usd_bought
+
+    def arbitrage_pools(self, buy_size=100000):
+        """
+        Function checks to see if the two LPs are within 20%, due to taxes.  if so it will perform a
+        "market induced" arbitrage.  Returns the total USD amount of funds input into the lower priced pool
+        """
+        total_buys = 0
+        profit = 0
+        while self.bnb_usd_price <= self.busd_usd_price * 0.8 or self.bnb_usd_price >= self.busd_usd_price * 1.2:
+            ele_out = self.pcs_buy(buy_size)
+            usd_out = self.pcs_sell(ele_out)
+            total_buys += buy_size
+            profit += usd_out - buy_size
+        return {'$buys': total_buys, '$profit': profit}
 
 
 class FuturesModel:
