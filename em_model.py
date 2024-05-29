@@ -26,8 +26,10 @@ futures_model = bsc.FuturesModel(d_coefs, w_coefs, c_coefs, start_date)
 ele_helper = bsc.ElephantHandler(em_data['ele_bnb_lp'], em_data['wbnb'],
                                  em_data['ele_busd_lp'], em_data['busd'],
                                  em_data['elephant'], em_data['bertha'], em_data['graveyard'])
-redemptions_paid = 0
-cum_futures_payouts = 0
+# Set up Trunk Helper
+trunk_helper = bsc.TrunkHandler(em_data['trunk_bnb_lp'], em_data['wbnb'],
+                                em_data['trunk_busd_lp'], em_data['busd'],
+                                em_data['trunk'])
 running_inflows = 0
 running_outflows = 0
 model_output = {}
@@ -49,36 +51,39 @@ for run in range(int(model_setup['run_days'])):
         break  # stop the loop when Bertha is exhausted (< 1T tokens)
 
     # Get Day Start Prices -----------------------------------------------------------------------
-    em_data['wbnb'].usd_value *= model_setup['market_growth'][today]
-    em_data['btc'].usd_value *= model_setup['market_growth'][today]
-    em_data['trunk'].usd_value *= model_setup['market_growth'][today]
+    em_data['wbnb'].usd_value *= model_setup['market_growth']
+    em_data['btc'].usd_value *= model_setup['market_growth']
     begin_ele_price = ele_helper.bnb_usd_price
     em_assets_day_start = (ele_helper.bertha_usd_value + em_data['btc_turbine'].usd_value +
                            em_data['trunk_turbine'].usd_value +
                            (em_data['bnb_reserve'] + em_data['rdf']) * em_data['wbnb'].usd_value)
+
     # Daily Bertha Support ---------------------------------------------------------------------
     daily_bertha_support_usd = ele_helper.bertha_usd_value * (model_setup['support_apr'])
+
     # Incoming Funds ---------------------------------------------------------------------
-    '''  Track futures as aggregate below
-    # --- new Futures stakes ---
-    wallets = int(model_setup['f_new_wallets'][today])
-    deposit = model_setup['f_new_deposit'][today]
-    for _ in range(wallets):
-        if sunset_futures is True and sunset_date is today or futures_done is True:
-            futures_done = True
-            pass
-        else:
-            em_data['btc_turbine'].balance += deposit * 0.1 / em_data['btc'].usd_value
-            em_data['rdf'] += deposit * 0.1 / em_data['wbnb'].usd_value
-            em_data['bnb_reserve'] += deposit * 0.1 / em_data['wbnb'].usd_value
-            bnb_for_trunk = deposit * 0.2 / em_data['wbnb'].usd_value
-            trunk_removed = em_data['trunk_bnb_lp'].update_lp(em_data['wbnb'], bnb_for_trunk)
-            em_data['trunk_turbine'].balance += trunk_removed
-            bnb_for_elephant = deposit * 0.5 / em_data['wbnb'].usd_value
-            ele_helper.protocol_buy(bnb_for_elephant)
-            futures.append(bsc.YieldEngineV8(deposit, futures_group_rate))  # create new stake
-            em_cashflow.in_futures += deposit
-    '''
+    # --- Futures ---
+    # Using aggregated trends vs tracking individual wallets
+    # from futures overview at dune: https://dune.com/queries/3317877/5556286
+    # currently manually get the trendlines in Excel. TODO: use ML to get trendlines
+    # Update Futures Model
+    futures_model.today = today
+    # process deposits (50% Elephant, 20% Trunk Turbine, 10% ea BTC, BNB reserve, RDF
+    deposits = futures_model.deposit_delta
+    em_data['btc_turbine'].balance += deposits * 0.1 / em_data['btc'].usd_value
+    em_data['rdf'] += deposits * 0.1 / em_data['wbnb'].usd_value
+    em_data['bnb_reserve'] += deposits * 0.1 / em_data['wbnb'].usd_value
+    bnb_for_trunk = deposits * 0.2 / em_data['wbnb'].usd_value
+    trunk_removed = trunk_helper.bnb_lp.update_lp(em_data['wbnb'], bnb_for_trunk)
+    em_data['trunk_turbine'].balance += trunk_removed
+    bnb_for_elephant = deposits * 0.5 / em_data['wbnb'].usd_value
+    ele_helper.protocol_buy(bnb_for_elephant)
+    em_cashflow.in_futures += deposits
+    # process withdrawals
+    withdrawals = futures_model.withdrawal_delta
+    ele_needed = withdrawals / ele_helper.bnb_usd_price
+    bnb_out = ele_helper.protocol_sell(ele_needed)
+    em_cashflow.out_futures_sell += bnb_out * em_data['wbnb'].usd_value
     # --- NFT Mints ---
     mint_funds = model_setup['nft_mint_volume'][today]
     mints_available = int(mint_funds / (em_data['nft'].price * em_data['wbnb'].usd_value))
@@ -99,11 +104,10 @@ for run in range(int(model_setup['run_days'])):
     ele_helper.bwb_sell(model_setup['swb_volume'][today])
     em_cashflow.in_taxes += model_setup['swb_volume'][today] * 0.08
     em_cashflow.out_sell_volume += model_setup['swb_volume'][today] * 0.92
-
     # ------ Market Buys / Sells ------
     ele_helper.pcs_buy(model_setup['pcs_buy_volume'][today])
     em_cashflow.in_buy_volume += model_setup['pcs_buy_volume'][today]
-    ele_helper.pcs_sell(model_setup['market_sell_volume'][today])
+    ele_helper.pcs_sell_usd(model_setup['market_sell_volume'][today])
     em_cashflow.out_sell_volume += model_setup['market_sell_volume'][today]
 
     # Handle Governance ---------------------------------------------------------------------
@@ -117,44 +121,29 @@ for run in range(int(model_setup['run_days'])):
     # TODO: Specify trunk support mechanisms
     # Don't include the BNB reserve support since moving to aggregated futures handling
     # The APRs and everything will be aggregated into the trendlines of compounds, withdrawls, etc
-    support_ele = ele_helper.bertha * 0.04 / 365
+    support_ele = ele_helper.bertha * 0.04 / 365  # Ignore BNB reserve, part of futures model
     em_cashflow.out_trunk += ele_helper.protocol_sell(support_ele) * em_data['wbnb'].usd_value  # BNB returned
     # ------ Turbine governance ------
     # 1% APR from each turbine is used to buy Elephant
+    # BTC
+    bnb_raised = 0
     daily_apr = 0.01 / 365
-    btc_sell_usd = em_data['btc_turbine'].balance * daily_apr * em_data['btc'].usd_value
     em_data['btc_turbine'].balance *= (1 - daily_apr)
-    trunk_sell_usd = em_data['trunk_turbine'].balance * daily_apr * em_data['trunk'].usd_value
+    bnb_raised += em_data['btc_turbine'].balance * daily_apr * em_data['btc'].usd_value / em_data['wbnb'].usd_value
+    # TRUNK
     em_data['trunk_turbine'].balance *= (1 - daily_apr)
-    bnb_for_ele = (btc_sell_usd + trunk_sell_usd) / em_data['wbnb'].usd_value
-    ele_helper.protocol_buy(bnb_for_ele)
-
-    # Handle Futures ------------------------------------------------------------------------
-    # Using aggregated trends vs tracking individual wallets
-    # from futures overview at dune: https://dune.com/queries/3317877/5556286
-    # currently manually get the trendlines in Excel:
-    # TODO: use ML to get trendlines
-    # Update Futures Model
-    futures_model.today = today
-    # process deposits
-    deposits = futures_model.deposit_delta
-    em_data['btc_turbine'].balance += deposits * 0.1 / em_data['btc'].usd_value
-    em_data['rdf'] += deposits * 0.1 / em_data['wbnb'].usd_value
-    em_data['bnb_reserve'] += deposits * 0.1 / em_data['wbnb'].usd_value
-    bnb_for_trunk = deposits * 0.2 / em_data['wbnb'].usd_value
-    trunk_removed = em_data['trunk_bnb_lp'].update_lp(em_data['wbnb'], bnb_for_trunk)
-    em_data['trunk_turbine'].balance += trunk_removed
-    bnb_for_elephant = deposits * 0.5 / em_data['wbnb'].usd_value
-    ele_helper.protocol_buy(bnb_for_elephant)
-    em_cashflow.in_futures += deposits
-    # process withdrawals
-    withdrawals = futures_model.withdrawal_delta
-    ele_needed = withdrawals / ele_helper.bnb_usd_price
-    bnb_out = ele_helper.protocol_sell(ele_needed)
-    em_cashflow.out_futures_sell += bnb_out * em_data['wbnb'].usd_value
+    trunk_to_sell = em_data['trunk_turbine'].balance * daily_apr
+    bnb_raised += trunk_helper.bnb_lp.update_lp(em_data['trunk'], trunk_to_sell)
+    ele_helper.protocol_buy(bnb_raised)
 
     # Handle LP Arbitrage -------------------------------------------------------------------
-    # TODO: Write arbitrage function
+    trunk_helper.arbitrage_pools()
+    em_data['trunk'].usd_value = trunk_helper.busd_usd_price
+    # Good starting point for an Elephant Arb buy would be enough to raise the lower pool by ~ 15%
+    arb_pct = 15
+    multiplier = ((1 + arb_pct/100) ** 0.5 - 1) / 2
+    buy_size = ele_helper.total_usd_liquidity / 2 * multiplier  # use half the total since don't know which pool is lower
+    ele_helper.arbitrage_pools(buy_size)
 
     # Update assets and debts --------------------------------------------------------------
     em_data['elephant_wallets'] = ele_helper.ele_in_wallets
@@ -174,14 +163,19 @@ for run in range(int(model_setup['run_days'])):
         "$em_market_cap/m": em_market_cap / 1E6,
         "$em_assets/m": em_assets / 1E6,
         "$em_liquidity/m": liquidity / 1E6,
+        "$btc": em_data['btc'].usd_value,
+        "btc_turbine": em_data['btc_turbine'].balance,
+        "$btc_turbine/m": em_data['btc_turbine'].usd_value / 1E6,
+        "$trunk": trunk_helper.busd_usd_price,
+        "trunk_turbine/m": em_data['trunk_turbine'].balance / 1E6,
+        "$trunk_turbine/m": em_data['trunk_turbine'].usd_value / 1E6,
         "$em_asset_growth/m": em_growth / 1E6,
         "%em_asset_growth": em_growth / em_assets * 100,
         "$funds_in/m": running_inflows / 1E6,
         "$funds_out/m": running_outflows / 1E6,
-        "bertha/T": em_data['bertha'] / 1E12,
-        "$bertha/m": em_data['bertha'] * ele_helper.bnb_usd_price / 1E6,
+        "bertha/T": ele_helper.bertha / 1E12,
+        "$bertha/m": ele_helper.bertha_usd_value / 1E6,
         "$elephant/m": ele_helper.bnb_usd_price * 1E6,
-        "$trunk": em_data['trunk'].usd_value,
         "trumpet": em_data['trumpet'].price,
         "trumpet_backing": em_data['trumpet'].backing,
         "trumpet_supply": em_data['trumpet'].supply,
@@ -211,5 +205,5 @@ for run in range(int(model_setup['run_days'])):
 
 df_model_output = pd.DataFrame(model_output).T
 df_model_output.to_csv('outputs/output_time.csv')
-em_plot_time_subset(df_model_output)
+# em_plot_time_subset(df_model_output)
 print("Done")
