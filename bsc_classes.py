@@ -5,6 +5,8 @@ from web3 import Web3
 import json
 import requests
 import pandas as pd
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures
 
 
 class Token:
@@ -719,23 +721,27 @@ class ElephantHandler:
         return {'$buys': total_buys, '$profit': profit}
 
 
+def get_model_prediction(model: LinearRegression, delta_days):
+    # first need to build input polynomial
+    j = [0]
+    for i in range(model.rank_):
+        j.append(delta_days ** (i + 1))
+    model_in = np.array(j).reshape(1, -1)  # Need to reshape into model's desired array format
+    return model.predict(model_in)[0]
+
+
 class FuturesModel:
-    """ Model of futures using a 3rd order polynomials for the aggregate functions of deposits, compounds,
-    and withdrawals.  Coefficients should be entered as a list: [3rd, 2nd, 1st, 0].
-    The dependent variable is days passed the start of the data collection
+    """
+    Model of futures using ML (scikit-learn) to predict future prices based on downloaded dune data
+    This model is at the aggregate level, not individual wallets
     """
 
-    def __init__(self, d_coef=None, w_coef=None, c_coef=None, start_date=pd.to_datetime('2023-12-02')):
-        if c_coef is None:
-            c_coef = [3.0379, -567.23, 98922, 1E7]
-        if w_coef is None:
-            w_coef = [0.6847, -76.35, 47600, 3E6]
-        if d_coef is None:
-            d_coef = [3.5509, -823.19, 86748, 2E7]
-        self.deposit_coef = d_coef
-        self.withdrawal_coef = w_coef
-        self.compound_coef = c_coef
-        self.start_date = start_date
+    def __init__(self, deposit_model: LinearRegression, withdraw_model: LinearRegression,
+                 compound_model: LinearRegression, model_start_date: str):
+        self.deposit_model = deposit_model
+        self.withdrawal_model = withdraw_model
+        self.compound_model = compound_model
+        self.start_date = pd.to_datetime(model_start_date)
         self.today = pd.to_datetime(pd.Timestamp.today().date())
 
     @property
@@ -744,23 +750,25 @@ class FuturesModel:
 
     @property
     def deposits(self):
-        return poly3_calc(self.deposit_coef, self.delta_days)
+        return get_model_prediction(self.deposit_model, self.delta_days)
 
     @property
     def deposit_delta(self):
-        return self.deposits - poly3_calc(self.deposit_coef, self.delta_days - 1)
+        yesterday = get_model_prediction(self.deposit_model, self.delta_days - 1)
+        return self.deposits - yesterday
 
     @property
     def withdrawals(self):
-        return poly3_calc(self.withdrawal_coef, self.delta_days)
+        return get_model_prediction(self.withdrawal_model, self.delta_days)
 
     @property
     def withdrawal_delta(self):
-        return self.withdrawals - poly3_calc(self.withdrawal_coef, self.delta_days - 1)
+        yesterday = get_model_prediction(self.withdrawal_model, self.delta_days - 1)
+        return self.withdrawals - yesterday
 
     @property
     def compounds(self):
-        return poly3_calc(self.compound_coef, self.delta_days)
+        return get_model_prediction(self.compound_model, self.delta_days)
 
     @property
     def tvl(self):
