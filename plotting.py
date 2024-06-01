@@ -144,31 +144,25 @@ def em_plot_time(em_df):
 
 
 def em_plot_time_subset(em_df):
-
     # --- Cashflow
-    em_df['net_bertha_purchases'] = np.subtract(em_df['bertha_buys'], em_df['bertha_sells'])
-    em_df['net_market_purchases'] = np.subtract(em_df['buy_volume'], em_df['sell_volume'])
-    em_df['net_purchases'] = np.add(em_df['net_bertha_purchases'], em_df['net_market_purchases'])
-    fig1, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=3)
+    fig1, axes = plt.subplots(figsize=[14, 9], nrows=2, ncols=2)
     em_df[['$elephant/m', '$trunk']].plot(ax=axes[0, 0], ylabel='$USD', title='Token Price',
                                           sharex=False, sharey=False, grid=True)
-    em_df[['net_bertha_purchases',
-           'net_market_purchases',
-           'net_purchases']].plot(ax=axes[0, 1], ylabel='$ USD', title='Net Elephant Purchases', sharex=False,
-                                  sharey=False, grid=True)
-    em_df['daily_futures_claimed'].plot(ax=axes[1, 0], ylabel='$ USD',
-                                        title='Daily Futures Claims', sharex=False, sharey=False, grid=True)
-    em_df['futures_busd_pool'].plot(ax=axes[1, 2], ylabel='$ USD',
-                                    title='Futures Buffer Pool', sharex=False, sharey=False, grid=True)
-    em_df['$em_cashflow'].plot(ax=axes[0, 2], ylabel='$ USD',
-                               title='Overall cashflow (inc market volume)', sharex=False, sharey=False, grid=True)
-    em_df['futures_owed/m'].plot(ax=axes[1, 1], ylabel='$ USD (millions)',
-                                 title='Futures TVL', sharex=False, sharey=False, grid=True)
+    em_df[['$em_assets/m',
+           '$btc_turbine/m',
+           '$trunk_turbine/m',
+           '$bertha/m']].plot(ax=axes[0, 1], ylabel='$millions USD', title='EM Assets', sharex=False,
+                              sharey=False, grid=True)
+    em_df[['$em_cashflow',
+           '$bertha_cashflow']].plot(ax=axes[1, 0], ylabel='$ USD',
+                                     title='EM Cashflow', sharex=False, sharey=False, grid=True)
+    em_df[['in_futures',
+           'out_futures']].plot(ax=axes[1, 1], ylabel='$ USD',
+                                title='Futures Deposits and Withdrawals', sharex=False, sharey=False, grid=True)
 
     plt.tight_layout()
     plt.show()
     fig1.savefig('outputs/fig1_{0}.png'.format(dt.datetime.today()))
-
 
 # df = pd.read_csv('outputs/output_time.csv', index_col=0, parse_dates=True)
 # df = pd.read_csv('outputs/output_funds.csv', index_col=0)

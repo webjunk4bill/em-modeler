@@ -151,7 +151,6 @@ for run in range(int(model_setup['run_days'])):
     em_cashflow.in_buybacks = bnb_raised * em_data['wbnb'].usd_value
 
     # Handle LP Arbitrage -------------------------------------------------------------------
-    # TODO: Need to add Solana pool, for now Sol liquidity is included in the BUSD pool
     trunk_helper.arbitrage_pools()
     em_data['trunk'].usd_value = trunk_helper.average_trunk_price
     # Good starting point for an Elephant Arb buy would be enough to raise the lower pool by ~ 15%
@@ -221,5 +220,5 @@ for run in range(int(model_setup['run_days'])):
 
 df_model_output = pd.DataFrame(model_output).T
 df_model_output.to_csv('outputs/output_time.csv')
-# em_plot_time_subset(df_model_output)
+em_plot_time_subset(df_model_output)
 print("Done")

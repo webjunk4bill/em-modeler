@@ -122,7 +122,7 @@ class SolanaLP:
     This is actually getting the pair information from DexScreener as it's easier than grabbing it
     from the Solana contracts.  Probably should have done this for the BNB pairs as well.  It's faster too.
     """
-    def __init__(self, pair_addr: str, token0: Token, token1: Token):
+    def __init__(self, pair_addr: str):
         self.pair_addr = pair_addr
         self.token_bal = {}
         # Query DexScreener
