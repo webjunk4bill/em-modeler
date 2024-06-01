@@ -46,7 +46,7 @@ else:
     f.close()
 df = pd.DataFrame(fut_overview.result.rows).sort_values('date')
 # Choose a subset of days if desired
-model_days = 365  # for full range use df.shape[0]
+model_days = 180  # for full range use df.shape[0]
 slicer = df.shape[0] - model_days
 subset = df[slicer:]
 start_date = subset['date'][model_days - 1]
@@ -56,7 +56,7 @@ deposits = subset['cumdeposit'].values
 compounds = subset['cumcompound'].values
 withdrawals = subset['cumwithdraw'].values
 # Need to iterate this for the model_days and the polynomial degrees to try and find the best fit for extrapolation
-d_model = build_model(days, deposits, 1)
+d_model = build_model(days, deposits, 2)
 c_model = build_model(days, compounds, 2)
 w_model = build_model(days, withdrawals, 2)
 dune_data['futures_model'] = bsc.FuturesModel(d_model, w_model, c_model, start_date)
@@ -77,6 +77,7 @@ dune_data['bwb_volume'] = df_buy['value_usd']['BWB']
 dune_data['Buyback'] = df_buy['value_usd']['BuyBack']
 dune_data['nft_sell_taxes'] = df_buy['value_usd']['NFT Royalties']
 dune_data['total_buy_volume'] = df_buy['value_usd'].values.sum()
+dune_data['nft_mint_volume'] = 0
 
 # -- Get Sell Volume --
 if download:

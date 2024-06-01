@@ -17,23 +17,11 @@ def setup_run(end_date):
     dune = pickle.load(f_o)
     f_o.close()
 
-    # Get EM Data
-    f_o = open('chain_data/emData.pkl', 'rb')
-    em_data = pickle.load(f_o)
-    f_o.close()
-
     # All APRs are the daily equivalent
     model_setup = {'support_apr': 0.05 / 365,  # 1% ea for BNB reserve, perf fund, NFTs.  2% Trunk/Trumpet
                    'day': pd.Timestamp(date.today()),
-                   'f_compound_usd': 200,
-                   'f_claim_wait': 120
+                   'futures_model': dune['futures_model']
                    }
-    # Futures, estimated based off new wallets and busd_treasury inflows
-    # This doesn't always match buyback due to the trailing nature of only using 50% of the busd treasury for buybacks
-    busd_treasury_in = dune['Buyback'] * 2  # Buyback only accounts for 50% of inflows now.
-    # Get new wallets from the dune holders page
-    new_wallets = 8
-    new_deposit = busd_treasury_in / new_wallets
 
     # Get Time info
     end_date = pd.Timestamp(end_date)
@@ -49,10 +37,10 @@ def setup_run(end_date):
 
     # --- EM Growth ---
     # Buy Side
-    ele_buy_multiplier = [1, 1.1]
+    ele_buy_multiplier = [1]
     ele_sparse_range = pd.interval_range(model_setup['day'], end_date, len(ele_buy_multiplier)).left
     temp_ele_s = pd.Series(ele_buy_multiplier, index=ele_sparse_range)
-    temp_ele_s[end_date] = 1.2
+    temp_ele_s[end_date] = 1
     temp_ele_full = pd.Series(temp_ele_s, index=full_range).interpolate()
     model_setup['bwb_volume'] = np.multiply(temp_ele_full, dune['bwb_volume'])  # This in $USD
     model_setup['pcs_buy_volume'] = np.multiply(temp_ele_full, dune['pcs_buy_volume'])
@@ -60,22 +48,13 @@ def setup_run(end_date):
     model_setup['nft_sales_revenue'] = np.multiply(temp_ele_full, dune['nft_sell_taxes'])
 
     # Sell Side
-    ele_sell_multiplier = [1, 0.8]
+    ele_sell_multiplier = [1]
     ele_sparse_range = pd.interval_range(model_setup['day'], end_date, len(ele_sell_multiplier)).left
     temp_ele_s = pd.Series(ele_sell_multiplier, index=ele_sparse_range)
-    temp_ele_s[end_date] = 0.7
+    temp_ele_s[end_date] = 1
     temp_ele_full = pd.Series(temp_ele_s, index=full_range).interpolate()
     model_setup['swb_volume'] = np.multiply(temp_ele_full, dune['swb_volume'])
-    model_setup['market_sell_volume'] = np.multiply(temp_ele_full, dune['pcs_sell_volume'])
-
-    # Debt producing growth
-    income_multiplier = [1, 1.5]
-    inc_sparse_range = pd.interval_range(model_setup['day'], end_date, len(income_multiplier)).left
-    temp_income_s = pd.Series(income_multiplier, index=inc_sparse_range)
-    temp_income_s[end_date] = 2
-    temp_income_full = pd.Series(temp_income_s, index=full_range).interpolate()
-    model_setup['f_new_wallets'] = np.multiply(temp_income_full, new_wallets)
-    model_setup['f_new_deposit'] = np.multiply(temp_income_full, new_deposit)
+    model_setup['pcs_sell_volume'] = np.multiply(temp_ele_full, dune['pcs_sell_volume'])
 
     return model_setup
 

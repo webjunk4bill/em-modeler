@@ -52,6 +52,9 @@ class Token:
 
 
 class CakeLP:
+    """
+    TODO: Switch pair queries to Dexscreener from the contract reads
+    """
     def __init__(self, pair_addr: str, token0: Token, token1: Token):
         self.pair_addr = pair_addr
         self.token_addr = [token0.address, token1.address]
@@ -78,6 +81,64 @@ class CakeLP:
             self.token_bal[self.token_name[1]] *= 1E9
         else:
             pass
+        self.const_prod = self.token_bal[self.token_name[0]] * self.token_bal[self.token_name[1]]
+
+    def get_price(self, token: Token):
+        """ Get token price in the other token"""
+        if self.token_bal[token.symbol]:
+            other_key = (set(self.token_bal.keys()) - {token.symbol}).pop()
+            price = self.token_bal[token.symbol] / self.token_bal[other_key]
+        else:
+            raise Exception('Token Symbol not found')
+        return price
+
+    def update_lp(self, token: Token, change):
+        """
+        Use this to update the token pair and price
+        match token name, update the balances, re-calc the price
+        """
+        [first, second] = self.token_bal.keys()
+        if first == token.symbol:
+            old = self.token_bal[second]  # Get original "buy" token balance
+            self.token_bal[first] += change  # Push in "sell" tokens
+            self.token_bal[second] = self.const_prod / self.token_bal[first]  # Calc new "buy" token balance
+            tokens_removed = old - self.token_bal[second]  # Cal number of tokens bought or removed
+        else:  # This is just in the opposite order
+            old = self.token_bal[first]
+            self.token_bal[second] += change
+            self.token_bal[first] = self.const_prod / self.token_bal[second]
+            tokens_removed = old - self.token_bal[first]
+
+        return tokens_removed
+
+    def add_liquidity(self, token1: Token, amt1: float, token2: Token, amt2: float):
+        self.token_bal[token1.symbol] += amt1
+        self.token_bal[token2.symbol] += amt2
+        self.const_prod = self.token_bal[token1.symbol] * self.token_bal[token2.symbol]
+
+
+class SolanaLP:
+    """
+    This is actually getting the pair information from DexScreener as it's easier than grabbing it
+    from the Solana contracts.  Probably should have done this for the BNB pairs as well.  It's faster too.
+    """
+    def __init__(self, pair_addr: str, token0: Token, token1: Token):
+        self.pair_addr = pair_addr
+        self.token_bal = {}
+        # Query DexScreener
+        url = f"https://api.dexscreener.io/latest/dex/pairs/solana/{self.pair_addr}"
+        self.response = requests.get(url)
+
+        if self.response.status_code == 200:
+            self.pair_info = self.response.json()
+        else:
+            raise Exception(f"Failed to fetch data. Status code: {self.response.status_code}")
+        self.token_name = [self.pair_info['pairs'][0]['baseToken']['symbol'],
+                           self.pair_info['pairs'][0]['quoteToken']['symbol']]
+        self.token_addr = [self.pair_info['pairs'][0]['baseToken']['address'],
+                           self.pair_info['pairs'][0]['quoteToken']['address']]
+        self.token_bal[self.token_name[0]] = self.pair_info['pairs'][0]['liquidity']['base']
+        self.token_bal[self.token_name[1]] = self.pair_info['pairs'][0]['liquidity']['quote']
         self.const_prod = self.token_bal[self.token_name[0]] * self.token_bal[self.token_name[1]]
 
     def get_price(self, token: Token):
@@ -412,17 +473,12 @@ class EMCashflow:
         self.in_trunk = 0
         self.in_buy_volume = 0
         self.in_buybacks = 0
-        self._in_total = None
-        self._bertha_buys = None
         self.out_futures_sell = 0
         self.out_futures_buffer = 0
         self.out_nft = 0
         self.out_trunk = 0
         self.out_perf = 0
         self.out_sell_volume = 0
-        self._out_total = None
-        self._cashflow = None
-        self._bertha_sells = None
 
     @property
     def in_total(self):
@@ -430,7 +486,7 @@ class EMCashflow:
 
     @property
     def bertha_buys(self):
-        return self.in_nft + self.in_buybacks
+        return self.in_nft + self.in_buybacks + self.in_futures * 0.5
 
     @property
     def out_total(self):
@@ -444,6 +500,10 @@ class EMCashflow:
     def cashflow(self):
         return self.in_total - self.out_total
 
+    @property
+    def bertha_cashflow(self):
+        return self.bertha_buys - self.bertha_sells
+
     def get_results(self):
         return {
             "in_futures": self.in_futures,
@@ -455,10 +515,12 @@ class EMCashflow:
             "out_nft": self.out_nft,
             "out_perf": self.out_perf,
             "out_trunk": self.out_trunk,
+            "out_futures": self.out_futures_sell,
             "sell_volume": self.out_sell_volume,
             "$em_outflow": self.out_total,
             "bertha_sells": self.bertha_sells,
             "bertha_buys": self.bertha_buys,
+            "$bertha_cashflow": self.bertha_cashflow,
             "$em_cashflow": self.cashflow
         }
 
@@ -507,6 +569,12 @@ class TrunkHandler:
     @property
     def total_usd_liquidity(self):
         return self.busd_usd_liquidity + self.bnb_usd_liquidity
+
+    @property
+    def average_trunk_price(self):
+        weighted_busd = self.busd_usd_price * self.busd_usd_liquidity
+        weighted_bnb = self.bnb_usd_price * self.bnb_usd_liquidity
+        return (weighted_bnb + weighted_busd) / self.total_usd_liquidity
 
     def protocol_buy(self, bnb_amt: float):
         """ protocol buys are always in BNB. """
@@ -594,12 +662,18 @@ class ElephantHandler:
 
     @property
     def bertha_usd_value(self):
-        return self.bertha * self.bnb_usd_price
+        return self.bertha * self.average_ele_price
 
     @property
     def ele_in_wallets(self):
         return (1E15 - self.graveyard - self.bertha - self.bnb_lp.token_bal['ELEPHANT'] -
                 self.busd_lp.token_bal['ELEPHANT'])
+
+    @property
+    def average_ele_price(self):
+        weighted_busd = self.busd_usd_price * self.busd_usd_liquidity
+        weighted_bnb = self.bnb_usd_price * self.bnb_usd_liquidity
+        return (weighted_bnb+weighted_busd) / self.total_usd_liquidity
 
     def protocol_buy(self, bnb_amt: float):
         """ protocol buys are always in BNB.  Updates treasury and LPs, does not return any values """
