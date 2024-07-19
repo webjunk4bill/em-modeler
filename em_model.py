@@ -13,7 +13,7 @@ em_data = get_em_data(read_blockchain=False)  # False = pull from pickle vs quer
 
 # Run Model Setup (starting funds, run quarters, current BNB price)
 # Edit parameters in setup_run.py to adjust model parameters
-model_setup = setup_run('2026-10-01')
+model_setup = setup_run('2025-06-01')
 # --- initialize variables
 # Set up Futures Model
 futures_model = model_setup['futures_model']

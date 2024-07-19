@@ -34,7 +34,7 @@ def get_em_data(*, read_blockchain: bool = False):
         em_data['ele_busd_lp'] = bsc.CakeLP(addr_tokens.lp_ele_busd, em_data['elephant'], em_data['busd'])
         em_data['trunk_busd_lp'] = bsc.CakeLP(addr_tokens.lp_trunk_busd, em_data['trunk'], em_data['busd'])
         em_data['trunk_bnb_lp'] = bsc.CakeLP(addr_tokens.lp_trunk_bnb, em_data['trunk'], em_data['wbnb'])
-        em_data['trunk_usdc_lp'] = bsc.SolanaLP(addr_tokens.lp_trunk_usdc, em_data['trunk'], em_data['usdc'])
+        em_data['trunk_usdc_lp'] = bsc.SolanaLP(addr_tokens.lp_trunk_usdc)
         # For ease, add Solana USDC-backed Trunk liquidity to the Trunk-BUSD LP
         em_data['trunk_busd_lp'].add_liquidity(em_data['trunk'], em_data['trunk_usdc_lp'].token_bal[em_data['trunk'].symbol],
                                                em_data['busd'], em_data['trunk_usdc_lp'].token_bal[em_data['usdc'].symbol])
