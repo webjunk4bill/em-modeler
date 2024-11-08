@@ -3,11 +3,11 @@ import pandas as pd
 import pickle
 
 funds_in = 0
-group_rate = 0.95 / 365
+group_rate = 0.34 / 365
 engine = bsc.YieldEngineV8(funds_in, group_rate)
-engine.balance = 100000
-engine.deposits = 50000
-website_claimed = 140000
+engine.balance = 168996
+engine.deposits = 61080
+website_claimed = 240346
 engine.claimed = (engine.deposits + website_claimed - engine.balance) / 2  # to get this from the website values:
 # Different from how I track
 # web: Withdrawls = (Deposits + Claimed - TVL)/2, so Compounds = Claimed - Withdrawls
@@ -28,13 +28,14 @@ deposit_after_claim = False
 
 schedule = {  # Start from T = 0, always deposit first, than claim, then will reset
     "initial": 0,
-    "dep": 7,
-    "claim": 12,
+    "dep": 4,
+    "claim": 8,
 }
-days = round(365 * 2)
+days = round(365 * 1)
 cycles = round(days / len(schedule)) + 1
 roll_claim = []
 i = 1
+find = True
 
 for i in range(days):
     engine.pass_days(1, group_rate)
@@ -62,10 +63,15 @@ for i in range(days):
     data['compounded'].append(engine.compounds)
     data['realized_gains'].append(engine.claimed / engine.deposits)
 
-to_pickle = engine
-f = open('engine.pkl', 'wb')
+    if (engine.claimed / engine.deposits) > 1.98 and find:
+        print(schedule, '=> gains:', (engine.claimed / engine.deposits), 'balance:', engine.balance,
+              'days passed:', engine.total_days, 'daily:', engine.balance * engine.rate * engine.rate_limiter)
+        find = False
+
+# to_pickle = engine
+# f = open('engine.pkl', 'wb')
 # pickle.dump(to_pickle, f)
-f.close()
+# f.close()
 
 df = pd.DataFrame(data)
 df.to_csv('temp.csv')
